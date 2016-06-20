@@ -2,8 +2,28 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
- 
- 
+
+
+/* Linked lists: things to remember:
+    - Single ll:
+        + insert: check for empty or first, and sweep prev and curr pointers
+        + reverse: check for empty or one, and sweep with prev, curr, and next pointers
+    - Circular single ll:
+        + insert: check for empty, check for first (memcpy *list to new), and sweep
+                  with prev and curr
+        + reverse: check for empty or one, and sweep with prev, curr, and next pointers
+    - Double ll:
+        + insert: check for empty, check for one, and sweep with ptr. When pass node,
+                  prev = ptr->prev, and adjust prev->next, ptr->prev, and new->next/prev 
+        + reverse: sweep with curr and next and adjust 
+                 (curr->next = curr->prev; curr->prev = next)
+    - Circular double ll:
+        + insert: check for empty, check for one, and sweep with ptr. When pass node,
+                prev = ptr->prev, and adjust prev->next, ptr->prev, and new->next/prev 
+        + reverse: sweep with curr and next and adjust 
+                (curr->next = curr->prev; curr->prev = next)
+*/
+
 /* node for single linked list */
 typedef struct node {
     struct node *next;
@@ -174,6 +194,9 @@ void reverse_singlecircular(node_ts ** list) {
 /*
  * Routines for double linked list
  */
+
+// TODO: isnt it easier how it is done for circular insert
+// Do not look ahead, and then define prev = ptr->prev
 void insert_double(node_td ** list, int value) {
     node_td * new = malloc(sizeof(node_td));
     new->value = value;
