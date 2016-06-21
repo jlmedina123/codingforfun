@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
  
-/***
-Review of bitwise operations (bit manipulation:
+/*** Review of bitwise operations
     && is logical operator: result is true (1) or false (0)
     & is bitwise operator, applies && to each bit. result is a number
     set bit x:              vble |= (1<<x)
@@ -12,11 +11,43 @@ Review of bitwise operations (bit manipulation:
     check if bit x set:     if(vble & (1<<x))
     get lower x bits:       v = vble & (2**x-1)
     get higher x bits:      v = vble & ~(2**(16-x)-1)
+***/
+
+/* Review of macros:
+ single line macro: #define macro(var) (expressions)
+ multi line macro:  #define macro(var) (\
+                     {\
+                         expressions; \
+                     }\
+                     )
+  macro to return value: macro needs to be one expression
  */
+
  
 /***
-* some macros for bitwise operations 
+ * some macros for bitwise operations 
  */
+#define setbit(v, i) 		(v |= (1<<i))
+#define clearbit(v, i) 		(v &= ~(1<<i))
+#define togglebit(v, i) 	(v ^= (1<<i))
+#define isbitset(v, i)  	(v & (1<<i))
+#define updatebit(v, i, new)    (v = new ? v | (1<<i) : v & ~(1<<i))
+#define updatebit2(v, i, new)   (v = ((v & ~(1<<i)) | new<<i)) 
+
+#define getLSbitstoi(v, i)  	(v & ((1<<(i+1))-1))     // get least-significat bits from 0 to i (inclusive)
+#define getMSbitsfromi(v, i)  	(v & ~((1<<(i+1))-1))    // get most-significant bits from sizeof(v)*8 to i (inclusive)
+
+#define clearLSbitstoi(v, i)    (v &= ~((i<<(i+1))-1))   // clear least-significat bits from 0 to i (inclusive)
+#define clearMSbitsfromi(v, i)  (v &= ~((1<<(i+1))-1))      // clear most-significat bits from sizeof(v)*8 to i (inclusive)
+
+#define setLSbitstoi(v, i)	(v |= ((1<<(i+1))-1))    // set least-significant bits from 0 to i (inclusive)
+#define setMSbitsfromi(v, i)	(v |= ~((1<<(i+1))-1))   // set least-significant bits from N to i (inclusive)
+
+#define setbitsbetweenij(v, i, j)   (v |= (((1<<(i-j+1))-1)<<j))   // i > j
+#define clearbitsbetweenij(v, i, j) (v &= ~(((1<<(i-j+1))-1)<<j))
+
+
+
 // align pointer to x bytes boundary
 #define align(ptr, bytes) \
        ((typeof(ptr))(((uintptr_t)(ptr) + (bytes)-1) & ~((bytes)-1)))
@@ -52,7 +83,24 @@ Review of bitwise operations (bit manipulation:
 #define swap4bitsuint32(a) (((a & 0xF0F0F0F0) >> 4) | ((a & 0X0F0F0F0F) << 4))
  
 #define swapbytesuint32(a) (((a & 0xFF00FF00) >> 8) | ((a & 0x00FF00FF) << 8))
- 
+
+
+uint32_t merge_m_into_n(uint32_t m, uint32_t n, int i, int j) {
+    // 1) clear bits from i to j in n
+    uint32_t mask = ((1<<(i-j+1))-1)<<j;
+    uint32_t n_clear = n | mask;
+
+    // 2) shift m (and make sure other bits cleared)
+    m &= ((1<<(i-j+1))-1);  // clear MS bits
+    m = m << j;
+
+    // 3) merge
+    return m | n_clear;
+}
+   
+    
+    
+  
 int islittleendian() {
     int t = 1;
     /* assuming int 4 bytes, it could be stored as:
@@ -186,7 +234,7 @@ int swapbits(int a, int i, int j) {
     return a;
 }
  
-int swapeverytwobits(int a) {
+int swapeverytwobits(int x) {
     return ((x & 0xAAAAAAAA)>>1 | (x & 0x55555555)<<1);
 }
  
@@ -207,11 +255,42 @@ uint64_t swapnibble64bit(uint64_t var) {
  *                        expressions; \
  *                    }\
  *                    )
+ *
+ * macro to return value: macro needs to be one expression
  */
 #define swapnibble64bitmacro(var) \
  ((((var) & 0xF0F0F0F0F0F0F0F0)>>4) | (((var) & 0x0F0F0F0F0F0F0F0F) <<4))
  
 int main () {
+
+    // testing bitwise macros
+    uint32_t v;
+    v = 0;
+    printf("setbit(0, 4): 0x%x\n", setbit(v, 4));
+    v = 0xFFFFFFFF;
+    printf("clearbit(0xFFFFFFFF, 4): 0x%x\n", clearbit(v, 4));
+    v = 0xFFFFFFFF;
+    printf("togglebit(0xFFFFFFFF, 4): 0x%x\n", togglebit(v, 4));
+    v = 0;
+    printf("isbitset(0, 4): %s\n", isbitset(v, 4) ? "set" : "clear");
+    printf("updatebit(0, 4, 1): 0x%x\n", updatebit(v, 4, 1));
+    v = 0;
+    printf("updatebit2(0, 4, 1): 0x%x\n", updatebit2(v, 4, 1));
+    v = ~0;
+    printf("getLSbitstoi(0xFFFFFFFF, 8): 0x%x\n", getLSbitstoi(v, 8));
+    printf("getMSbitsfromi(0xFFFFFFFF, 8): 0x%x\n", getMSbitsfromi(v, 8));
+    printf("clearLSbitstoi(0xFFFFFFFF, 8): 0x%x\n", clearLSbitstoi(v, 8));
+    v = ~0;
+    printf("clearMSbitsfromi(0xFFFFFFFF, 8): 0x%x\n", clearMSbitsfromi(v, 8));
+    v = 0;
+    printf("setLSbitstoi(0, 8): 0x%x\n", setLSbitstoi(v, 8));
+    v = 0;
+    printf("setMSbitsfromi(0,8): 0x%x\n", setMSbitsfromi(v, 8));
+    v = 0;
+    printf("setbitsbetweenij(0, 8, 4): 0x%x\n", setbitsbetweenij(v, 8, 4));
+    v = ~0;
+    printf("setbitsbetweenij(~0, 8, 4): 0x%x\n", clearbitsbetweenij(v, 8, 4));
+
     // Check if machine is little endian or big endian
     if (islittleendian())
         printf("Machine is little-endian (LSB at lowest byte)\n");
@@ -264,8 +343,8 @@ int main () {
    int d =  swapeverytwobits(a);
  
    // swap nibbles
-   uint64_t a = 0x1233456789; /* uint64_t is unsigned long long -> %llx */
-   printf("0x%llx, nibbles swapped 0x%llx\n", a, swapnibble64bit(a));
-   printf("0x%llx, nibbles swapped 0x%llx\n", a, swapnibble64bitmacro(a));
+   uint64_t c = 0x1233456789; /* uint64_t is unsigned long long -> %llx */
+   printf("0x%llx, nibbles swapped 0x%llx\n", c, swapnibble64bit(c));
+   printf("0x%llx, nibbles swapped 0x%llx\n", c, swapnibble64bitmacro(c));
    return 0;
 }
