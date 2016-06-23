@@ -27,24 +27,24 @@
 /***
  * some macros for bitwise operations 
  */
-#define setbit(v, i) 		(v |= (1<<i))
-#define clearbit(v, i) 		(v &= ~(1<<i))
-#define togglebit(v, i) 	(v ^= (1<<i))
-#define isbitset(v, i)  	(v & (1<<i))
+#define setbit(v, i) 		(v |= (1<<i))   // LSbit is bit 0
+#define clearbit(v, i) 		(v &= ~(1<<i))  // LSbit is bit 0
+#define togglebit(v, i) 	(v ^= (1<<i))   // LSbit is bit 0
+#define isbitset(v, i)  	(v & (1<<i))    // LSbit is bit 0
 #define updatebit(v, i, new)    (v = new ? v | (1<<i) : v & ~(1<<i))
 #define updatebit2(v, i, new)   (v = ((v & ~(1<<i)) | new<<i)) 
 
 #define getLSbitstoi(v, i)  	(v & ((1<<(i+1))-1))     // get least-significat bits from 0 to i (inclusive)
 #define getMSbitsfromi(v, i)  	(v & ~((1<<(i+1))-1))    // get most-significant bits from sizeof(v)*8 to i (inclusive)
 
-#define clearLSbitstoi(v, i)    (v &= ~((i<<(i+1))-1))   // clear least-significat bits from 0 to i (inclusive)
-#define clearMSbitsfromi(v, i)  (v &= ~((1<<(i+1))-1))      // clear most-significat bits from sizeof(v)*8 to i (inclusive)
+#define clearLSbitstoi(v, i)    (v &= ~((1<<(i+1))-1))   // clear least-significat bits from 0 to i (inclusive) (i+1 bits cleared)
+#define clearMSbitsfromi(v, i)  (v &= ((1<<(i+1))-1))      // clear most-significat bits from sizeof(v)*8 to i (not inclusive, i not cleared)
 
 #define setLSbitstoi(v, i)	(v |= ((1<<(i+1))-1))    // set least-significant bits from 0 to i (inclusive)
-#define setMSbitsfromi(v, i)	(v |= ~((1<<(i+1))-1))   // set least-significant bits from N to i (inclusive)
+#define setMSbitsfromi(v, i)	(v |= ~((1<<(i+1))-1))   // set least-significant bits from N to i (not inclusive, bit i not set)
 
-#define setbitsbetweenij(v, i, j)   (v |= (((1<<(i-j+1))-1)<<j))   // i > j
-#define clearbitsbetweenij(v, i, j) (v &= ~(((1<<(i-j+1))-1)<<j))
+#define setbitsbetweenij(v, i, j)   (v |= (((1<<(i-j+1))-1)<<j))   // i > j (both inclusive, both set, LSbit=0)
+#define clearbitsbetweenij(v, i, j) (v &= ~(((1<<(i-j+1))-1)<<j))  // i > j (both inclusive, both cleared, LSbit=0)
 
 
 
@@ -189,14 +189,26 @@ int ispoweroftwo2(int a) {
  
 int indexhighestbitset(unsigned int a) {
     int i;
+    // LSbit = 0
+    // return -1 if no bit set
+    int highest=-1; 
+    for (i = 0; i < sizeof(int)*8; i++) {
+        if (a & 1<<i)
+            highest = i;
+    }
+    return highest;
+ 
+}
+
+int indexlowestbitset(unsigned int a) {
+    int i;
     for (i = 0; i < sizeof(int)*8; i++) {
         if (a & 1<<i)
             return i+1;
     }
     return 0;
- 
-}
- 
+
+} 
 int everydigitsetone(unsigned int a) {
     return !(a & (a+1));
 }
