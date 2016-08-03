@@ -124,7 +124,7 @@ struct vm_operations_struct mmap_vm_ops = {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
     .nopage =   mmap_nopage,
 #else
-        .fault =    mmap_fault,
+    .fault =    mmap_fault,
 #endif
 };
  
