@@ -84,6 +84,11 @@
  
 #define swapbytesuint32(a) (((a & 0xFF00FF00) >> 8) | ((a & 0x00FF00FF) << 8))
 
+#define changeendiannesuint32(a) (\
+                ((a & 0xFF) << 24) |\
+                ((a & 0xFF00) << 8) |\
+                ((a & 0xFF0000) >> 8) |\
+                ((a & 0xFF000000) >> 24))
 
 uint32_t merge_m_into_n(uint32_t m, uint32_t n, int i, int j) {
     // 1) clear bits from i to j in n
@@ -160,11 +165,11 @@ unsigned int changeendianessint(unsigned int a) {
 }
  
 /* change unsigned 1 byte endianness */
-unsigned char changeendinanesschar(unsigned char a) {
+/*unsigned char changeendinanesschar(unsigned char a) {
     unsigned char swapped;
     swapped = (a>>8) | (a<<8);
     return swapped;
-}
+}*/
  
 unsigned int swaporderbits(unsigned int a) {
     unsigned int swapped = 0;
@@ -323,7 +328,9 @@ int main () {
     unsigned int b = 419;
     unsigned int swapped = changeendianessint(b);
     printf("0x%x (%u) with reversed endianess is 0x%x (%u)\n", b, b, swapped, swapped);
- 
+    printf("0x%x (%u) with reversed endianess is 0x%x (%u)\n", b, b, 
+            changeendiannesuint32(b), changeendiannesuint32(b));
+
     // swap order of bits of unsigned int
     swapped = swaporderbits(b);
     inttobinary(swapped, binary);
