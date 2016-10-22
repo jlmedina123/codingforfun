@@ -564,7 +564,18 @@ static irqreturn_t interrupt_method(int irq, void *dev_instance)
             rx_size = rx_status >> 16;           
             pkt_size = rx_size - 4; // 
              
-            // Alloc sk buffer
+            // Alloc sk buffer. sk_buff elements:
+            //      head: points to start of packet 
+            //      data: points to start of packet payload
+            //      tail: points to end of packet payload
+            //      end:  points to end of packet
+            //      len:  amount of data
+            // sk_buff API:
+            //      dev_alloc_skb(len+NET_IP_ALIGN): data, head, tail point to start
+            //      skb_reserve(skb, NET_IP_ALIGN): makes space for header. Moves data, tail by NET_IP_ALIGN
+            //      memcpy(skb->data, dma_buffer, len): copies payload from DMA to skb after header
+            //      skb_put(skb, len): moves tail to end of payload
+            //      netif_rx(skb): passes skb to network stack   
             skb = dev_alloc_skb(pkt_size + 2); // extra two bytes for 16byte align
             if (skb) {
                 skb->dev = net_dev;
