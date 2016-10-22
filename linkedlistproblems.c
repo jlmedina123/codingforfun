@@ -185,6 +185,13 @@ int ispalindrome(node_t * list) {
     return TRUE;
 }
  
+void readbackwards(node_t * list) {
+    if (!list)
+        return;
+    readbackwards(list->next);    
+    printf("%d, ", list->value); 
+}
+
 int main() {
  
     node_t * list = NULL;
@@ -218,6 +225,9 @@ int main() {
         printf("List is palindrome\n");
     else
         printf("List is not palindrome\n");
- 
+
+    printf("List read backwards:\n");
+    readbackwards(list);
+    printf("\n");
     return 0;
 }
