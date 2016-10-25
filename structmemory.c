@@ -45,25 +45,50 @@ int main() {
     return 0;
 }
  
- 
 /*
-	int: bytes 4, min: -29, max: 28
-	short: bytes 2
-	long: bytes 8
-	long long: bytes 8
-	float: bytes 4(1 byte exponent, 3 bytes mantissa)
-	double: bytes 8 (11 bits exponent, 53 bits mantissa)
-	long double: bytes 16 (16 bits exponent, 64 bits mantissa)
-	sizeof struct1: 16
-	sizeof struct: 40
-	ptr addr 0x7fffc2ae1270: 0x11223344
-	ptr addr 0x7fffc2ae1274: 0x0
-	ptr addr 0x7fffc2ae1278: 0x55667788
-	ptr addr 0x7fffc2ae127c: 0x11223344
-	ptr addr 0x7fffc2ae1280: 0x44332211
-	ptr addr 0x7fffc2ae1284: 0x0
-	ptr addr 0x7fffc2ae1288: 0xfffffff4
-	ptr addr 0x7fffc2ae128c: 0x22334455
-	ptr addr 0x7fffc2ae1290: 0x1
-	ptr addr 0x7fffc2ae1294: 0
-*/
+ * stdout from my mac:
+ * 
+ * int: bytes 4, min: -29, max: 28
+ * short: bytes 2
+ * long: bytes 8
+ * long long: bytes 8
+ * float: bytes 4(1 byte exponent, 3 bytes mantissa)
+ * double: bytes 8 (11 bits exponent, 53 bits mantissa)
+ * long double: bytes 16 (16 bits exponent, 64 bits mantissa)
+ * sizeof struct: 40
+ * ptr addr 0x7fff5c0c3a10: 0x11223344
+ * ptr addr 0x7fff5c0c3a14: 0x0
+ * ptr addr 0x7fff5c0c3a18: 0x55667788
+ * ptr addr 0x7fff5c0c3a1c: 0x11223344
+ * ptr addr 0x7fff5c0c3a20: 0x44332211
+ * ptr addr 0x7fff5c0c3a24: 0x0
+ * ptr addr 0x7fff5c0c3a28: 0xfffffff4
+ * ptr addr 0x7fff5c0c3a2c: 0x22334455
+ * ptr addr 0x7fff5c0c3a30: 0x1
+ * ptr addr 0x7fff5c0c3a34: 0x7fff
+ *
+ * stdout from Linux machine:
+ *
+ * int: bytes 4, min: -29, max: 28
+ * short: bytes 2
+ * long: bytes 8
+ * long long: bytes 8
+ * float: bytes 4(1 byte exponent, 3 bytes mantissa)
+ * double: bytes 8 (11 bits exponent, 53 bits mantissa)
+ * long double: bytes 16 (16 bits exponent, 64 bits mantissa)
+ * sizeof struct: 40
+ * ptr addr 0x7fff5d661750: 0x11223344
+ * ptr addr 0x7fff5d661754: 0x7fff
+ * ptr addr 0x7fff5d661758: 0x55667788
+ * ptr addr 0x7fff5d66175c: 0x11223344
+ * ptr addr 0x7fff5d661760: 0x44332211
+ * ptr addr 0x7fff5d661764: 0x7fb8
+ * ptr addr 0x7fff5d661768: 0xfffffff4
+ * ptr addr 0x7fff5d66176c: 0x22334455
+ * ptr addr 0x7fff5d661770: 0x1
+ * ptr addr 0x7fff5d661774: 0x0
+ * 
+ */
+                       
+
+
