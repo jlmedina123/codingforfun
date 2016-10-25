@@ -109,14 +109,20 @@ uint32_t merge_m_into_n(uint32_t m, uint32_t n, int i, int j) {
 int islittleendian() {
     int t = 1;
     /* assuming int 4 bytes, it could be stored as:
+     *  
             0 x 00 00 00 01: MSB in lower addr
             0 x 01 00 00 00: LSB in lower addr
-                &t       &t+sizeof(int)
-                 higher addr -->
+                &t       &t+4bytes
+                ptr
+                higher addr -->
+                 
        Big-endian: MSB in lower addr (the 'normal' way
                    we write (assuming addr increase left to right)
        Little-endian: MSB in higher addr (opposite of
                    what are used to in regular life)
+       typecasting pointer to variable always gets lowest address       
+       For Big-endian, pointer gets MSB (lowest addr)
+       For Little-endian, pointer gets LSB (lowest addr)     
     */
     char *ptr;
     ptr = (char *)&t; /* access lowest addr */
