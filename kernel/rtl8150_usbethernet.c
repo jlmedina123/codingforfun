@@ -15,12 +15,13 @@
  *      2) usb_fill_control/int/bulk_urb()
  *      3) usb_submit_urb()
  *      or usb_control_interrupt_bulk_msg()
- *      usb_free_urb() or usb_unlink_urb()
+ *      4) usb_free_urb() or usb_unlink_urb()
  *  pipe: address element of each data transfer. encodes endpoint, direction (in, out), exchange type
  *      usb_rcv/snd|ctrl/int/bulk/isoc_pipe()
  *  Descriptors: hold information about device
  *   - usb_device_descriptor
  *   - usb_config_descriptor
+ *   - usb_interface_descriptor
  *   - usb_endpoint_descriptor
  */
 

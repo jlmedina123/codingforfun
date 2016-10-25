@@ -19,6 +19,23 @@
                                      ioread16(ioaddr + (reg)); } while(0)
 #define IOWRITE32_F(reg, val32) do { iowrite32((val32), ioaddr + (reg)); \
                                      ioread32(ioaddr + (reg)); } while(0)                                   
+
+/* PCI addressable regions:
+ *  - configuration space
+ *  - I/O ports
+ *  - device memory
+ *  There are 6 I/O or memory regions, addresses can be read from BAR 0-5
+ *  Access to regions:
+ *  - pci_read_config_byte(), pci_write_config_byte()
+ *  - I/O region: pci_resource_start(), request_region()/pci_request_region(), inl()/outl()
+ *  - memory region: pci_resource_start(), request_mem_region()/pci_request_region(), pci_iomap()
+ *  DMA
+ *  - consistent/coherent: pci_alloc_consistent()
+ *  - streaming:
+ *      + pci_map_single(): single DMA buffer
+ *      + pci_map_sg(): list of scatter-gather DMA buffers
+ */
+
 /*
  * PCI entry points prototypes
  */
