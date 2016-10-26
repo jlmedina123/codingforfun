@@ -32,13 +32,10 @@ void producer(int t_num) {
         pthread_mutex_lock(&buffer_lock);
         while (isfull())
             pthread_cond_wait(&full_cond, &buffer_lock);
-        if (isempty()) {
-            queue(i);
-            pthread_cond_signal(&empty_cond);    
-        } else 
-            queue(i);
         printf("Queueing %d\n", i);
+        queue(i);
         pthread_mutex_unlock(&buffer_lock);
+        pthread_cond_signal(&empty_cond);    
     }
 }
 
@@ -50,13 +47,10 @@ void consumer(int t_num) {
         pthread_mutex_lock(&buffer_lock);
         while (isempty())
             pthread_cond_wait(&empty_cond, &buffer_lock);
-        if (isfull()) {
-            v = dequeue();
-            pthread_cond_signal(&full_cond);
-        } else 
-            v = dequeue();
+        v = dequeue();
         printf("Dequeing %d\n", v);
-        pthread_mutex_unlock(&buffer_lock);
+        pthread_mutex_unlock(&buffer_lock);    
+        pthread_cond_signal(&full_cond);
     }
 }
 
