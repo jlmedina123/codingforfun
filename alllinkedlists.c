@@ -13,8 +13,9 @@
                   with prev and curr
         + reverse: check for empty or one, and sweep with prev, curr, and next pointers
     - Double ll:
-        + insert: check for empty, check for one, and sweep with ptr. When pass node,
-                  prev = ptr->prev, and adjust prev->next, ptr->prev, and new->next/prev 
+        + insert: use current pointer only, but looking ahead. Watch for mistake of
+                 reusing curr->next 
+                  
         + reverse: sweep with curr and next and adjust 
                  (curr->next = curr->prev; curr->prev = next)
     - Circular double ll:
