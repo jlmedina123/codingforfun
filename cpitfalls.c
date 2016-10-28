@@ -14,7 +14,7 @@ char *a = 'yes'; /* 'yes' is integer composed of values 'y', 'e', 's',
                     typecasted to char */
 char *a = "yes"; /* string with three characters and null terminated,
                     in read-only data memory. Cannot change */
-char a[] = yes; /* string in read-only data memory. Copied to stack,
+char a[] = "yes"; /* string in read-only data memory. Copied to stack,
                    so it can change */
 if (flags & FLAG != 0) /* equivalent to if (flags & (FLAG !=0)) */
 r = h<<4 + l;    /* equivalent to r = h << (4 + l); */
@@ -60,7 +60,7 @@ while (i < n) {
 
 for (i = 0; i < n; i++)     
     y[i] = x[i];  /* works fine */ 
-                  /* biwise operators: &, |, ~     -> arguments per bit
+                  /* bitwise operators: &, |, ~     -> arguments per bit
                      logical operators: &&, ||, !  -> arguments true or false
                    */
  

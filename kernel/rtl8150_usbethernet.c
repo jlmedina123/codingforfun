@@ -73,7 +73,6 @@ static const struct net_device_ops rtl8150_netdev_ops = {
         //.ndo_tx_timeout         = rtl8150_tx_timeout,
         //.ndo_set_rx_mode        = rtl8150_set_multicast,
         //.ndo_set_mac_address    = rtl8150_set_mac_address,
-
         //.ndo_change_mtu         = eth_change_mtu,
         //.ndo_validate_addr      = eth_validate_addr,
 };
@@ -129,7 +128,7 @@ static int rtl8150_probe(struct usb_interface *intf,
         SET_ETHTOOL_OPS(netdev, &ops);
 
 
-	// 2) Get private data from netdev and initialize it
+	    // 2) Get private data from netdev and initialize it
         dev = netdev_priv(netdev);
 
         dev->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
@@ -174,7 +173,7 @@ static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
 {
 	/* specify control IN endpoint number 0 
             usb_rcvctrlpipe macro: (dev->devnum << 8) | (endpoint << 15)
-         */
+    */
 	unsigned int pipe = usb_rcvctrlpipe(dev->udev, 0);
  	/* build control URB, send it off, and wait for completion
 	   usb_control_msg()
@@ -189,7 +188,7 @@ static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
  	*/
         return usb_control_msg(dev->udev, 	     /* struct usb_device */
 			       pipe,	             /* endpoint pipe to send msg to */
-                               RTL8150_REQ_GET_REGS, /* USB msg request */ 
+                   RTL8150_REQ_GET_REGS, /* USB msg request */ 
 			       RTL8150_REQT_READ,    /* USB msg request type */
                                indx,		     /* USB msg value */ 
 				0,		     /* USB msg index value */ 

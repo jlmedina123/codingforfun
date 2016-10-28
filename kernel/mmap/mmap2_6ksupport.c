@@ -50,23 +50,8 @@ struct mmap_info {
     char *data; /* the data */
     int reference;       /* how many times it is mmapped */    
 };
-
-
-/* 
- * char device file operations 
- */
-int my_open(struct inode *inode, struct file *filp);
-int my_close(struct inode *inode, struct file *filp);
-int my_mmap(struct file *filp, struct vm_area_struct *vma);  // attaches VMA ops to this VMA
-
-/*
- * VMA operations
- */
-void mmap_open(struct vm_area_struct *vma);
-void mmap_close(struct vm_area_struct *vma);
-int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf); // maps faulting virtual addr to page
-
-
+ 
+ 
  
 /* keep track of how many times it is mmapped */
 void mmap_open(struct vm_area_struct *vma)
@@ -85,23 +70,36 @@ void mmap_close(struct vm_area_struct *vma)
 /* nopage is called the first time a memory area is accessed which is not in memory,
  * it does the actual mapping between kernel and user space memory
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+struct page *mmap_nopage(struct vm_area_struct *vma, unsigned long address, int *type)
+#else
 int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+#endif
 {
     struct page *page;
     struct mmap_info *info;
-    unsigned long address = (unsigned long)vmf->virtual_address;
-    
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0)
+        unsigned long address = (unsigned long)vmf->virtual_address;
+#endif
+        PRINTFUNC();
     /* is the address valid? */
     if (address > vma->vm_end) {
         PRINT("invalid address");
-        return VM_FAULT_SIGBUS;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+        return NOPAGE_SIGBUS;
+#else
+                return VM_FAULT_SIGBUS;
+#endif
     }
-    
     /* the data is in vma->vm_private_data */
     info = (struct mmap_info *)vma->vm_private_data;
     if (!info->data) {
         PRINT("no data");
-       return VM_FAULT_SIGBUS;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+        return NOPAGE_OOM;  
+#else
+                return VM_FAULT_SIGBUS;
+#endif
     }
  
     /* get the page */
@@ -109,23 +107,32 @@ int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
      
     /* increment the reference count of this page */
     get_page(page);
-        
-    vmf->page = page;
-    return 0;
+    /* type is the page fault type */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+    if (type)
+        *type = VM_FAULT_MINOR;
+    return page;
+#else
+        vmf->page = page;
+        return 0;
+#endif
 }
  
 struct vm_operations_struct mmap_vm_ops = {
     .open =     mmap_open,
     .close =    mmap_close,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+    .nopage =   mmap_nopage,
+#else
     .fault =    mmap_fault,
+#endif
 };
  
 int my_mmap(struct file *filp, struct vm_area_struct *vma)
 {
-    /* attach VMA operations to this VMA */
+    PRINTFUNC();
     vma->vm_ops = &mmap_vm_ops;
     vma->vm_flags |= VM_RESERVED;
-
     /* assign the file private data to the vm private data */
     vma->vm_private_data = filp->private_data;
     mmap_open(vma);
@@ -135,9 +142,9 @@ int my_mmap(struct file *filp, struct vm_area_struct *vma)
 int my_close(struct inode *inode, struct file *filp)
 {
     struct mmap_info *info = filp->private_data;
-    PRINTFUNC();
+        PRINTFUNC();
     free_page((unsigned long)info->data);
-    kfree(info);
+        kfree(info);
     filp->private_data = NULL;
     return 0;
 }
@@ -145,10 +152,11 @@ int my_close(struct inode *inode, struct file *filp)
 int my_open(struct inode *inode, struct file *filp)
 {
     struct mmap_info *info;
+        PRINTFUNC();
  
-    info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
+        info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
     /* obtain new memory */
-    info->data = (char *)get_zeroed_page(GFP_KERNEL);
+        info->data = (char *)get_zeroed_page(GFP_KERNEL);
     /* writing something to it */
     memcpy(info->data, "hello from kernel this is file: ", 32);
     memcpy(info->data + 32, filp->f_dentry->d_name.name,
@@ -166,16 +174,21 @@ static const struct file_operations my_fops = {
  
 static int __init mmapexample_module_init(void)
 {
+    PRINTFUNC();
     file1 = debugfs_create_file(DEV_NAME, 0644, NULL, NULL, &my_fops);
     return 0;
 }
  
 static void __exit mmapexample_module_exit(void)
 {
+    PRINTFUNC();
     debugfs_remove(file1);
+ 
 }
  
 module_init(mmapexample_module_init);
 module_exit(mmapexample_module_exit);
 MODULE_AUTHOR("Jay Medina");
 MODULE_LICENSE("GPL");
+
+

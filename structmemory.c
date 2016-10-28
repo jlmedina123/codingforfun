@@ -41,7 +41,10 @@ int main() {
     // Big endian would read    11 22 33 44
     // Little endian would read 44 33 22 11
     test1.e = -12;
-    //
+    // 2's complement: 00000000 00000000 00000000 00001100 binary
+    //                 11111111 11111111 11111111 11110011 invert
+    //                 11111111 11111111 11111111 11110100 add 1
+    //                 0xFF     0xFF     0xFF     0xF 4
     test1.f = 0x1122334455; // warning
     // 0x 11 22 33 44 (55)
     test1.g = 0x06;
