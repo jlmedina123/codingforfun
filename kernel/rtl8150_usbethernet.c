@@ -2,22 +2,59 @@
  * based off drivers/net/usb/rtl8150.c
  */
 
-/* Types of data exchange:
+/* Two types of USB drivers:
+ *  - USB device driver: runs on a host system and controls the USB device connected to it
+ *  - USB gadget driver: runs on a device and controls how the device looks to the host computer
+ *
+ * Types of data exchange (endpoints):
  *  - control transfer
  *  - bulk transfer: large data, time-insensitive
  *  - interrupt transfer: small data, time-sensitive
  *  - isonchronous transfer: real-time data
- *  Endpoint: addressable unit. unidirectional (IN upstream or OUT downstream)
+ *
+ *  Endpoint: addressable unit. carries data in one direction (IN upstream or OUT downstream)
+ * Defined by struct usb_host_endpoint, with struct usb_endpoint_descriptor
+ *
+ *  Interface: bundles multiple endpoints within one single logical connection (mouse, keyboard, etc)
+ * Defined by struct usb_interface
+ *
+ * Configuration: bundle of interfaces. One USB device can hae multiple configurations, and switch them
+ * to change states
+ * Defined by struct usb_host_config
+ *
  *  Device memory not mapped to CPU memory (unlike PCI)
  *  struct usb_device
- *  struct urb: API
+ *  
+ * URB: used for communication, to send/receive data to/from end point. Defined by struct urb
+ * struct urb:
+ *     struct usb_device *dev
+ *      unsigned int pipe: endpoint the urb is sent to. API to set it up:
+ *        uint usb_sndctrlpipe(dev, endpoint): specifies control OUT endpoint
+ *        uint usb_rcvctrlpipe(dev, endpoint): specifies control IN endpoint
+ *        uint usb_sndbulkpipe(dev, endpoint): specifies bulk OUT endpoint
+ *        uint usb_rcvbulkpipe(dev, endpoint): 
+ *        uint usb_sndintpipe(dev, endpoint):
+ *        uint usb_rcvintpipe(dev, endpoint):
+ *        uint usb_sndisocpipe
+ *        uint usbrcvisopipe
+ *    unsigned int transfer_flags
+ *    void *buffer
+ *     dmd_addr_t transfer_dma
+ *    ...
+ *  API:
  *      1) usb_alloc_urb()
  *      2) usb_fill_control/int/bulk_urb()
  *      3) usb_submit_urb()
  *      or usb_control_interrupt_bulk_msg()
- *      4) usb_free_urb() or usb_unlink_urb()
- *  pipe: address element of each data transfer. encodes endpoint, direction (in, out), exchange type
- *      usb_rcv/snd|ctrl/int/bulk/isoc_pipe()
+ *      4) usb_free_urb() 
+ *      To cancel urb: usb_kill_urb() or usb_unlink_urb()
+ * Completion handler:
+ * usb_submit_urb: 0 returned if call successful, completion handler called once.
+ * completion handler called in three situations:
+ *    1) urb successufully sent, and ack recevied. urb->status set to 0
+ *    2) error: urb->status != 0
+ *    3) urb unlinked. urb canceled by user, or usb device unplugged    
+ *
  *  Descriptors: hold information about device
  *   - usb_device_descriptor
  *   - usb_config_descriptor
@@ -85,7 +122,7 @@ static const struct net_device_ops rtl8150_netdev_ops = {
 module_usb_driver(rtl8150_driver);
 
 /* macros for module init/exit: 
-	
+    
 #define module_usb_driver(__usb_driver) \
         module_driver(__usb_driver, usb_register, \
                        usb_deregister)
@@ -115,86 +152,86 @@ module_exit(__driver##_exit);
 static int rtl8150_probe(struct usb_interface *intf,
                          const struct usb_device_id *id)
 {
-        struct usb_device *udev = interface_to_usbdev(intf);
-        rtl8150_t *dev;
-        struct net_device *netdev;
-        struct sk_buff *skb;
-        int i;
+    struct usb_device *udev = interface_to_usbdev(intf);
+    rtl8150_t *dev;
+    struct net_device *netdev;
+    struct sk_buff *skb;
+    int i;
 
-        // 1) Alloc Ethernet device and initialize it
-        netdev = alloc_etherdev(sizeof(rtl8150_t));
-        netdev->netdev_ops = &rtl8150_netdev_ops;
-        netdev->watchdog_timeo = RTL8150_TX_TIMEOUT;
-        SET_ETHTOOL_OPS(netdev, &ops);
+    // 1) Alloc Ethernet device and initialize it
+    netdev = alloc_etherdev(sizeof(rtl8150_t));
+    netdev->netdev_ops = &rtl8150_netdev_ops;
+    netdev->watchdog_timeo = RTL8150_TX_TIMEOUT;
+    SET_ETHTOOL_OPS(netdev, &ops);
 
 
-	    // 2) Get private data from netdev and initialize it
-        dev = netdev_priv(netdev);
+    // 2) Get private data from netdev and initialize it
+    dev = netdev_priv(netdev);
 
-        dev->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
-        tasklet_init(&dev->tl, rx_fixup, (unsigned long)dev);
-        spin_lock_init(&dev->rx_pool_lock);
-        dev->udev = udev;
-        dev->netdev = netdev;
-        dev->intr_interval = 100;       /* 100ms */
+    dev->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
+    tasklet_init(&dev->tl, rx_fixup, (unsigned long)dev);
+    spin_lock_init(&dev->rx_pool_lock);
+    dev->udev = udev;
+    dev->netdev = netdev;
+    dev->intr_interval = 100;       /* 100ms */
 
-	// 3) Allocate interrupt buffer
-	dev->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
+    // 3) Allocate interrupt buffer
+    dev->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
 
-	// 4) Allocate URBs
-	dev->rx_urb = usb_alloc_urb(0, GFP_KERNEL);
-        dev->tx_urb = usb_alloc_urb(0, GFP_KERNEL);
-        dev->intr_urb = usb_alloc_urb(0, GFP_KERNEL);
+    // 4) Allocate URBs
+    dev->rx_urb = usb_alloc_urb(0, GFP_KERNEL);
+    dev->tx_urb = usb_alloc_urb(0, GFP_KERNEL);
+    dev->intr_urb = usb_alloc_urb(0, GFP_KERNEL);
         
-	// 5) Allocate sk buffers
-        for (i = 0; i < RX_SKB_POOL_SIZE; i++) {
-            	skb = dev_alloc_skb(RTL8150_MTU + 2);
-                skb_reserve(skb, 2);
-                dev->rx_skb_pool[i] = skb;
-        }
+    // 5) Allocate sk buffers
+    for (i = 0; i < RX_SKB_POOL_SIZE; i++) {
+        skb = dev_alloc_skb(RTL8150_MTU + 2);
+        skb_reserve(skb, 2);
+        dev->rx_skb_pool[i] = skb;
+    }
 
-	// 6) Get Ethernet address and set it up
-        u8 node_id[6];
-        get_registers(dev, IDR, sizeof(node_id), node_id);
-        memcpy(dev->netdev->dev_addr, node_id, sizeof(node_id));
+    // 6) Get Ethernet address and set it up
+    u8 node_id[6];
+    get_registers(dev, IDR, sizeof(node_id), node_id);
+    memcpy(dev->netdev->dev_addr, node_id, sizeof(node_id));
 
-	// 7) Attach private data to interface and to net device 
-        usb_set_intfdata(intf, dev);
-        SET_NETDEV_DEV(netdev, &intf->dev);
+    // 7) Attach private data to interface and to net device 
+    usb_set_intfdata(intf, dev);
+    SET_NETDEV_DEV(netdev, &intf->dev);
 
-	// 8) Register net device
-        register_netdev(netdev); 
+    // 8) Register net device
+    register_netdev(netdev); 
 
-        return 0;
+    return 0;
 }
 
 
 static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
 {
-	/* specify control IN endpoint number 0 
-            usb_rcvctrlpipe macro: (dev->devnum << 8) | (endpoint << 15)
+    /* specify control IN endpoint number 0 
+       usb_rcvctrlpipe macro: (dev->devnum << 8) | (endpoint << 15)
     */
-	unsigned int pipe = usb_rcvctrlpipe(dev->udev, 0);
- 	/* build control URB, send it off, and wait for completion
-	   usb_control_msg()
-		struct usb_ctrlrequest *dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO);
-	        dr->bRequestType = requesttype;  
+    unsigned int pipe = usb_rcvctrlpipe(dev->udev, 0);
+    /* build control URB, send it off, and wait for completion
+       usb_control_msg()
+        struct usb_ctrlrequest *dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO);
+            dr->bRequestType = requesttype;  
                 dr->bRequest = request;
                 dr->wValue = cpu_to_le16(value);
                 dr->wIndex = cpu_to_le16(index);
                 dr->wLength = cpu_to_le16(size);
                 ret = usb_internal_control_msg(dev, pipe, dr, data, size, timeout);
                 kfree(dr);
- 	*/
-        return usb_control_msg(dev->udev, 	     /* struct usb_device */
-			       pipe,	             /* endpoint pipe to send msg to */
+    */
+    return usb_control_msg(dev->udev,          /* struct usb_device */
+                   pipe,                 /* endpoint pipe to send msg to */
                    RTL8150_REQ_GET_REGS, /* USB msg request */ 
-			       RTL8150_REQT_READ,    /* USB msg request type */
-                               indx,		     /* USB msg value */ 
-				0,		     /* USB msg index value */ 
-				data,		     /* data */ 
-				size,		     /* lenghts of data in bytes */ 
-				500);		     /* time to wait in msecs before timing out */
+                   RTL8150_REQT_READ,    /* USB msg request type */
+                   indx,             /* USB msg value */ 
+                   0,             /* USB msg index value */ 
+                   data,             /* data */ 
+                   size,             /* lenghts of data in bytes */ 
+                   500);             /* time to wait in msecs before timing out */
 }
 
 static int set_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
