@@ -1,3 +1,8 @@
+/*
+ * TODO: add blocking and polling
+ */
+
+
 /* character device
  *
  * Makefile:
@@ -39,9 +44,9 @@ jose@jose:~/Documents/practive$ sudo rmmod chardriver
 #include <linux/kernel.h>  // for printk
 #include <linux/string.h>
 #include <linux/fs.h>
-#include <asm/uaccess.h>  // copy_from/to_user
-#include <linux/cdev.h> // class_create
-#include <linux/device.h> // class_create
+#include <asm/uaccess.h>   // copy_from/to_user
+#include <linux/cdev.h>    // class_create
+#include <linux/device.h>  // class_create
 #include <linux/types.h>
 #include <linux/kdev_t.h>
  
