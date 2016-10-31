@@ -15,7 +15,7 @@
  *  - Token packet: indicates type of transaction
  *  - Data packet
  *  - Handshake packet: for ack data or error
- *  - start of fram packet
+ *  - start of frame packet
  *
  * Enumeration: when device is connected to host, host sends control transaction to read 
  * device descriptors. Host then decices type of device driver
@@ -31,18 +31,16 @@
  *  - isonchronous transfer: real-time data
  *
  *  USB device components:
- *   - Endpoint: addressable unit. carries data in one direction (IN upstream or OUT downstream)
- *     Defined by struct usb_host_endpoint, with struct usb_endpoint_descriptor.
- *     Endpoint 0 exclusively for device configuration
- *   - Interface: bundles multiple endpoints within one single logical connection (mouse, keyboard, etc)
- *     Defined by struct usb_interface
- *   - Configuration: bundle of interfaces. One USB device can hae multiple configurations, and switch them
+ *   - Endpoint (struct usb_host_endpoint): addressable unit. carries data in one 
+ *   direction (IN upstream or OUT downstream). Endpoint 0 exclusively for device configuration
+ *   - Interface (struct usb_interface): bundles multiple endpoints within one single logical 
+ *   connection (mouse, keyboard, etc)
+ *   - Configuration: bundle of interfaces. One USB device can have multiple configurations, and switch them
  * to change states
  *     Defined by struct usb_host_config
- *   - Device. defined by structusb_device
+ *   - Device. defined by struct usb_device
  *
  *  Device memory not mapped to CPU memory (unlike PCI)
- *  struct usb_device
  *  
  * URB: used for all communication between host and device, to send/receive data 
  * to/from end point. Defined by struct urb. Every urb has a completion handler
@@ -60,7 +58,7 @@
  *        uint usbrcvisopipe
  *    unsigned int transfer_flags
  *    void *buffer
- *     dmd_addr_t transfer_dma
+ *    dmd_addr_t transfer_dma
  *    ...
  *  API:
  *      1) usb_alloc_urb()
@@ -95,10 +93,12 @@
 
  /* RTL8150 device specs:
   *   Endpoints
+  *      - 0 device configuration (as standard)
   *      - 1 BULK IN: to transfer packets to host. Incoming Ethernet packet queded in device's
   *        rx buffer. Packets transfered to host memory
   *      - 2 BULK OUT
   *      - 3 interrupt IN: to poll device stats (such as transmit errors)  
+  */
 
 /*
  * USB driver structs
@@ -152,11 +152,24 @@ static const struct net_device_ops rtl8150_netdev_ops = {
 };
 
 
+static int rtl8150_probe(struct usb_interface *intf, const struct usb_device_id *id);
+static int rtl8150_open(struct net_device *netdev);
+static netdev_tx_t rtl8150_start_xmit(struct sk_buff *skb, struct net_device *netdev);
+static void read_bulk_callback(struct urb *urb);
+static void write_bulk_callback(struct urb *urb);
+static void intr_callback(struct urb *urb);
+static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data);
+static int set_registers(rtl8150_t * dev, u16 indx, u16 size, void *data);
+
+
+
 
 /*
  * module methods
  */
 module_usb_driver(rtl8150_driver);
+
+
 
 /* macros for module init/exit: 
     
@@ -211,32 +224,34 @@ static int rtl8150_probe(struct usb_interface *intf,
     dev->udev = udev;
     dev->netdev = netdev;
     dev->intr_interval = 100;       /* 100ms */
+    tasklet_init(&dev->tl, rx_fixup, (unsigned long)dev);
 
-    // 3) Allocate interrupt buffer
+    // 2.1) Allocate interrupt buffer
     dev->intr_buff = kmalloc(INTBUFSIZE, GFP_KERNEL);
 
-    // 4) Allocate URBs
+    // 2.2) Allocate URBs
     dev->rx_urb = usb_alloc_urb(0, GFP_KERNEL);
     dev->tx_urb = usb_alloc_urb(0, GFP_KERNEL);
     dev->intr_urb = usb_alloc_urb(0, GFP_KERNEL);
         
-    // 5) Allocate sk buffers
+    // 2.3) Allocate sk buffers
     for (i = 0; i < RX_SKB_POOL_SIZE; i++) {
         skb = dev_alloc_skb(RTL8150_MTU + 2);
         skb_reserve(skb, 2);
         dev->rx_skb_pool[i] = skb;
     }
 
-    // 6) Get Ethernet address and set it up
+    // 2.4) Get Ethernet address and set it up
     u8 node_id[6];
     get_registers(dev, IDR, sizeof(node_id), node_id);
     memcpy(dev->netdev->dev_addr, node_id, sizeof(node_id));
 
-    // 7) Attach private data to interface and to net device 
+    // 3) Attach private data to interface 
     usb_set_intfdata(intf, dev);
+    // 4) Set sysfs device reference
     SET_NETDEV_DEV(netdev, &intf->dev);
 
-    // 8) Register net device
+    // 5) Register net device
     register_netdev(netdev); 
 
     return 0;
@@ -273,6 +288,7 @@ static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
 
 static int set_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
 {
+        // Builds a control urb, sends it off and waits for completion
         return usb_control_msg(dev->udev, usb_sndctrlpipe(dev->udev, 0),
                                RTL8150_REQ_SET_REGS, RTL8150_REQT_WRITE,
                                indx, 0, data, size, 500);
@@ -284,6 +300,8 @@ static int set_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
  * Net device operations
  */
 
+/* rtl8150_open fills, submits the bulk in and interrupt in URBs 
+ * and allows transmission (netif_start_queue)*/
 static int rtl8150_open(struct net_device *netdev)
 {
         rtl8150_t *dev = netdev_priv(netdev);
@@ -464,12 +482,14 @@ reschedule:
     }
 
     return;
+
 resched:
-    // 7.6) Schedule tasklet for... TBD
+    // if submit URB failed, fix it in tasklet
     tasklet_schedule(&dev->tl);
 }
 
-
+/* write_bulk_callback frees skb and restarts queue
+ */
 static void write_bulk_callback(struct urb *urb)
 {
     rtl8150_t *dev;
@@ -478,7 +498,9 @@ static void write_bulk_callback(struct urb *urb)
     dev = urb->context;
     if (!dev)
         return;
-    dev_kfree_skb_irq(dev->tx_skb);
+    // free skb from interrupt context
+    dev_kfree_skb_irq(dev->tx_skb); 
+
     if (!netif_device_present(dev->netdev))
         return;
     if (status)
@@ -499,7 +521,7 @@ static void intr_callback(struct urb *urb)
     int status = urb->status;
     int res;
 
-    // 1) check status
+    // 1) check URB status
     switch (status) {
     case 0:         /* success */
         break;
@@ -513,7 +535,9 @@ static void intr_callback(struct urb *urb)
              dev->netdev->name, status);
         goto resubmit;
     }
-  d = urb->transfer_buffer;
+
+    // 2) Check for tx errors 
+    d = urb->transfer_buffer;
     if (d[0] & TSR_ERRORS) {
         dev->netdev->stats.tx_errors++;
         if (d[INT_TSR] & (TSR_ECOL | TSR_JBR))
@@ -523,7 +547,7 @@ static void intr_callback(struct urb *urb)
         if (d[INT_TSR] & TSR_LOSS_CRS)
             dev->netdev->stats.tx_carrier_errors++;
     }
-    /* Report link status changes to the network stack */
+    // 3) Check for link errors, and report link changes to the network stack 
     if ((d[INT_MSR] & MSR_LINK) == 0) {
         if (netif_carrier_ok(dev->netdev)) {
             netif_carrier_off(dev->netdev);
@@ -537,6 +561,8 @@ static void intr_callback(struct urb *urb)
     }
 
 resubmit:
+
+    // 4) resubmit urb
     res = usb_submit_urb (urb, GFP_ATOMIC);
     if (res == -ENODEV)
         netif_device_detach(dev->netdev);

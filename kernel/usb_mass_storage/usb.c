@@ -1,18 +1,5 @@
 /* Driver for USB Mass Storage compliant devices
  *
- * Current development and maintenance by:
- *   (c) 1999-2003 Matthew Dharm (mdharm-usb@one-eyed-alien.net)
- *
- * Developed with the assistance of:
- *   (c) 2000 David L. Brown, Jr. (usb-storage@davidb.org)
- *   (c) 2003-2009 Alan Stern (stern@rowland.harvard.edu)
- *
- * Initial work by:
- *   (c) 1999 Michael Gee (michael@linuxspecific.com)
- *
- * usb_device_id support by Adam J. Richter (adam@yggdrasil.com):
- *   (c) 2000 Yggdrasil Computing, Inc.
- *
  * This driver is based on the 'USB Mass Storage Class' document. This
  * describes in detail the protocol used to communicate with such
  * devices.  Clearly, the designers had SCSI and ATAPI commands in
@@ -30,19 +17,6 @@
  * Please see http://www.one-eyed-alien.net/~mdharm/linux-usb for more
  * information about this driver.
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2, or (at your option) any
- * later version.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #ifdef CONFIG_USB_STORAGE_DEBUG
