@@ -71,24 +71,14 @@ struct cafe_priv {
 	unsigned char *dmabuf;
 };
 
-static int usedma = 1;
-module_param(usedma, int, 0644);
+static struct pci_driver cafe_nand_pci_driver = {
+    .name = "CAFÉ NAND",
+    .id_table = cafe_nand_tbl,
+    .probe = cafe_nand_probe,
+    .remove = cafe_nand_remove,
+    .resume = cafe_nand_resume,
+};
 
-static int skipbbt = 0;
-module_param(skipbbt, int, 0644);
-
-static int debug = 0;
-module_param(debug, int, 0644);
-
-static int regdebug = 0;
-module_param(regdebug, int, 0644);
-
-static int checkecc = 1;
-module_param(checkecc, int, 0644);
-
-static unsigned int numtimings;
-static int timing[3];
-module_param_array(timing, int, &numtimings, 0644);
 
 static const char *part_probes[] = { "cmdlinepart", "RedBoot", NULL };
 
@@ -613,12 +603,8 @@ static u16 gf4096_mul(u16 a, u16 b)
 	return (ch << 6) ^ cl;
 }
 
-static int cafe_mul(int x)
-{
-	if (x == 0)
-		return 1;
-	return gf4096_mul(x, 0xe01);
-}
+
+
 
 static int cafe_nand_probe(struct pci_dev *pdev,
 				     const struct pci_device_id *ent)
@@ -628,49 +614,42 @@ static int cafe_nand_probe(struct pci_dev *pdev,
 	uint32_t ctrl;
 	int err = 0;
 
-	/* Very old versions shared the same PCI ident for all three
-	   functions on the chip. Verify the class too... */
-	if ((pdev->class >> 8) != PCI_CLASS_MEMORY_FLASH)
-		return -ENODEV;
 
 	err = pci_enable_device(pdev);
-	if (err)
-		return err;
 
 	pci_set_master(pdev);
 
+
+    // Allocate mtd_info and private data
 	mtd = kzalloc(sizeof(*mtd) + sizeof(struct cafe_priv), GFP_KERNEL);
-	if (!mtd) {
-		dev_warn(&pdev->dev, "failed to alloc mtd_info\n");
-		return  -ENOMEM;
-	}
-	cafe = (void *)(&mtd[1]);
+	
+    cafe = (void *)(&mtd[1]);
 
 	mtd->dev.parent = &pdev->dev;
 	mtd->priv = cafe;
 	mtd->owner = THIS_MODULE;
 
 	cafe->pdev = pdev;
-	cafe->mmio = pci_iomap(pdev, 0, 0);
-	if (!cafe->mmio) {
-		dev_warn(&pdev->dev, "failed to iomap\n");
-		err = -ENOMEM;
-		goto out_free_mtd;
-	}
-	cafe->dmabuf = dma_alloc_coherent(&cafe->pdev->dev, 2112 + sizeof(struct nand_buffers),
-					  &cafe->dmaaddr, GFP_KERNEL);
-	if (!cafe->dmabuf) {
-		err = -ENOMEM;
-		goto out_ior;
-	}
+
+	// map PCI BAR 0
+	cafe->mmio = pci_iomap(pdev,  // struct pci_dev 
+						      0,  // BAR number 
+							  0); // lenght, 0 zero for complete BAR
+	// allocate DMA buffer
+	cafe->dmabuf = dma_alloc_coherent(&cafe->pdev->dev, // struct device 
+									2112 + sizeof(struct nand_buffers), // size
+							        &cafe->dmaaddr,     // bus address
+							        GFP_KERNEL);        // flags
 	cafe->nand.buffers = (void *)cafe->dmabuf + 2112;
 
+	// allocate struct rs_control
 	cafe->rs = init_rs_non_canonical(12, &cafe_mul, 0, 1, 8);
 	if (!cafe->rs) {
 		err = -ENOMEM;
 		goto out_ior;
 	}
 
+    // populate nand chip function pointers
 	cafe->nand.cmdfunc = cafe_nand_cmdfunc;
 	cafe->nand.dev_ready = cafe_device_ready;
 	cafe->nand.read_byte = cafe_read_byte;

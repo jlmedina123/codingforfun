@@ -27,11 +27,11 @@ number of context switches, page faults, etc
         2. struct sighand_struct *sighand -> array of signal handlers registered by   task
         3. struct sigpending pending -> signals pending (received)
     * files:
-        1. struct files_struct *files -> structure with file descriptor table, which has entries with pointers to files opened
-        2. struct fdtable __rcu *fdt;
-        3. struct file __rcu **fd;      /* current fd array */
-        4. struct file __rcu * fd_array[NR_OPEN_DEFAULT];
-        5. struct fs_struct *fs -> file system information, such as pwd
+        1. `struct files_struct *files` -> structure with file descriptor table, which has entries with pointers to files opened
+        2. `struct fdtable __rcu *fdt;`
+        3. `struct file __rcu **fd;      /* current fd array */`
+        4. `struct file __rcu * fd_array[NR_OPEN_DEFAULT];`
+        5. `struct fs_struct *fs` -> file system information, such as pwd
     * memory management:
         1. struct mm_struct *mm -> memory management
         2. void *stack -> points to bottom of kernel stack associated with the user task
@@ -161,52 +161,55 @@ represented by struct pglist_data
 	* node_zones: array with zones for the node
 * watermarks to wake up kswapd if low in memory
 * mem_map[]: array of struc page types for each physical page
-Virtual address space:
 
-32-bit process image:
-(kernel), stack, (lib suse), gap, heap, data/BSS, text, (lib RH), memory mapped files
-malloc:
-size from heap: raises break point of application’s data memory mapping. requested + size (4bytes), *prev malloc (4 bytes)
-size >128KB -> anonymous private pages allocated by kernel and added as VMA section to the process address space
-thread stacks
-each under previous stack, default 10MB upper limit
-red zone pages: page between threads’ stacks, with no access bits set, to avoid stack overflow
-64-bit process: 8 regions: 3 kernel, data/stacks, text, shared memory, 32-bit emulation
-current->mm: struct mm_struct: manages address space of task
-struct vm_area_struct *mmap, struct rb_root mm_rb  -> to list of VMAs: describes layout of memory region
-vm_start, vm_end, vm_flags
-vm_file -> if VMA for memory mapped file, points to entry in kernel’s file table entry associated with file
-vm_pgoff: page count within file wheren mapping begins
-vm_next, vm_rb: point to list of VMAs for that task (ordered by address and in a hash chain based of Red/Black tree)
-mmap_cache -> last VMA used, for find_vma(). if miss, traverse mm_rb
-pgd_t * pgd: pointer to page table for process
-indexes for regions: start/end_code, start_end_data, start_brk, brk, start_stack, etc
-address translation 32-bits
-cpu switches to process -> it loads  current->mm->pgd to cr3 register, which loads page tables and flushes TLB
-linear address: 10 bits PDI, 10 bits PTI, 12 bits page offset (0-4095 -> 4 KB page size)
-Page (Global) Directory: 10 bits -> 2^10=1024 entries, each entry a 4 bytes address -> point to PMD
-Page Middle Directory: for 32-bit all PGD point to same PMD (one PMD per process)
-Page Table: 32-bits entries:
-20 bits for page frame number
-12 bits flags:
- _PAGE_PRESENT (LSB):
-1 = page located where 20 bits point to.
-0 = page not in memory  -> page fault
-23 bits: swap device offset, 8 bits: type of paging space device
-if 31 bits NULL: page not allocated yet. Eg: when malloc is called
- _PAGE_ACCESSED: to check if page is being used, if not swap it out if needed
-_PAGE_DIRTY: on wen contents of page in memory have been modified and do no match contents of the page out on disk. Page must be written back to disk
-address translation 32-bit PAE
-linear address: 2 bits PGDT, 9 bits PGD, 9 bits PT, 12 bits page offset
-tables 64 bits: PGD pointer table, 4 Page Global Directories, Page Tables
-address translation 64 bits
-linear address: PGD 10 bits, reserved 21 bits, PMD 10 bits, PTE 10 bits, page offset 13 bits
-Page Directory
-Page Middle Directories
-Page Tables
+### Virtual address space:
+
+* 32-bit process image:
+	* (kernel), stack, (lib suse), gap, heap, data/BSS, text, (lib RH), memory mapped files
+* malloc:
+	* size from heap: raises break point of application’s data memory mapping. requested + size (4bytes), *prev malloc (4 bytes)
+	* size >128KB -> anonymous private pages allocated by kernel and added as VMA section to the process address space
+* thread stacks
+	* each under previous stack, default 10MB upper limit
+	* red zone pages: page between threads’ stacks, with no access bits set, to avoid stack overflow
+
+* 64-bit process: 8 regions: 3 kernel, data/stacks, text, shared memory, 32-bit emulation
+* current->mm: struct mm_struct: manages address space of task
+	* `struct vm_area_struct *mmap`, `struct rb_root mm_rb`  -> to list of VMAs: describes layout of memory region
+		* vm_start, vm_end, vm_flags
+		* vm_file -> if VMA for memory mapped file, points to entry in kernel’s file table entry associated with file
+		* vm_pgoff: page count within file wheren mapping begins
+		* vm_next, vm_rb: point to list of VMAs for that task (ordered by address and in a hash chain based of Red/Black tree)
+	* mmap_cache -> last VMA used, for find_vma(). if miss, traverse mm_rb
+	* pgd_t * pgd: pointer to page table for process
+	* indexes for regions: start/end_code, start_end_data, start_brk, brk, start_stack, etc
+
+* address translation 32-bits
+	* cpu switches to process -> it loads  current->mm->pgd to cr3 register, which loads page tables and flushes TLB
+	* linear address: 10 bits PDI, 10 bits PTI, 12 bits page offset (0-4095 -> 4 KB page size)
+		* Page (Global) Directory: 10 bits -> 2^10=1024 entries, each entry a 4 bytes address -> point to PMD
+		* Page Middle Directory: for 32-bit all PGD point to same PMD (one PMD per process)
+		* Page Table: 32-bits entries:
+			* 20 bits for page frame number
+			* 12 bits flags:
+ 				* `_PAGE_PRESENT (LSB)`:
+					* 1 = page located where 20 bits point to.
+					* 0 = page not in memory  -> page fault
+						* 23 bits: swap device offset, 8 bits: type of paging space device
+						* if 31 bits NULL: page not allocated yet. Eg: when malloc is called
+				* `_PAGE_ACCESSED`: to check if page is being used, if not swap it out if needed
+				* `_PAGE_DIRTY`: on when contents of page in memory have been modified and do no match contents of the page out on disk. Page must be written back to disk
+
+* address translation 32-bit PAE
+	* linear address: 2 bits PGDT, 9 bits PGD, 9 bits PT, 12 bits page offset
+	* tables 64 bits: PGD pointer table, 4 Page Global Directories, Page Tables
+
+* address translation 64 bits
+	* linear address: PGD 10 bits, reserved 21 bits, PMD 10 bits, PTE 10 bits, page offset 13 bits
+		* Page Directory, Page Middle Directories, Page Tables
 
 * Kernel High Memory mapping (32 bit):
-	* Low memory permanently mapped (+PAGE_OFFSET), but not high memory
+	* Low memory permanently mapped (+PAGE_OFFSET), but not high memory (if memory > 1GB)
 	* page in PTE reserved to map 1024 high pages into low memory via kmap
 	* last 128 MB of kernel addr space used for temporary mapping of high-memory page frames
 	* techniques for mapping:
@@ -228,27 +231,29 @@ vmalloc()
 
 		 
 * Anonymous mapping:
-memory mapping with no file or device backing it (heap, stack, etc)
-initially only allocates virtual memory (no physical) -> it only adds page table entries, and maps virtual address to (physical) zero page
-physical memory allocated on-demand, from page faults
-access unmapped memory (without page table entry) generates SIGSEGV
-Linux leaves first KB of process virtual address space unmapped, so deferencing null pointer tries to access unmapped memory, and generates SIGSEGV.
-File backed mapping:
-mirrors the content of an existing file
-MAP_SHARED: a write updates page cache  immediately (other processes see it)
-MAP_PRIVATE: a write performs COW and allocates new local copy of page
-Page fault: virtual addr doesn’t have entry in page table, or physical page is not allocated, or its’s allocated but paged out, or can’t write to it.
-cases:
-_PAGE_PRESENT bit off, frame available -> page not in physical memory, it was paged out
-_PAGE_PRESENT bit off, frame NULL -> page not allocated. eg: malloc
-_PAGE_PRESENT bit on, _PAGE_RW bit off, when trying to write to page -> allocate new page. eg: COW
-page fault handler: exception -> do_page_fault
-get faulting address from CPU
-find_VMA()
-faulting address above task’s VMA -> SIGSEV if user mode -> termination of task
-faulting add below -> check if VMA can grow downward -> if it cannot cover faulting addr -> SIGSEV
-if within valid VMA -> check permissions on page.
-if page missing -> handle_mm_fault
+	* memory mapping with no file or device backing it (heap, stack, etc)
+	* initially only allocates virtual memory (no physical) -> it only adds page table 	* entries, and maps virtual address to (physical) zero page
+	* physical memory allocated on-demand, from page faults
+	* access unmapped memory (without page table entry) generates SIGSEGV
+	* Linux leaves first KB of process virtual address space unmapped, so deferencing null pointer tries to access unmapped memory, and generates SIGSEGV.
+
+* File backed mapping:
+	* mirrors the content of an existing file
+	* MAP_SHARED: a write updates page cache  immediately (other processes see it)
+	* MAP_PRIVATE: a write performs COW and allocates new local copy of page
+
+* Page fault: virtual addr doesn’t have entry in page table, or physical page is not allocated, or its’s allocated but paged out, or can’t write to it. 
+	* Cases:
+		* _PAGE_PRESENT bit off, frame available -> page not in physical memory, it was paged out
+		* _PAGE_PRESENT bit off, frame NULL -> page not allocated. eg: malloc
+		* _PAGE_PRESENT bit on, _PAGE_RW bit off, when trying to write to page -> allocate new page. eg: COW
+	* page fault handler: exception -> do_page_fault
+		* get faulting address from CPU
+		* find_VMA()
+			* faulting address above task’s VMA -> SIGSEV if user mode -> termination of task
+			* faulting add below -> check if VMA can grow downward -> if it cannot cover faulting addr -> SIGSEV
+			* if within valid VMA -> check permissions on page.
+				* if page missing -> handle_mm_fault
 
 # Inside Disk-Based File System
 

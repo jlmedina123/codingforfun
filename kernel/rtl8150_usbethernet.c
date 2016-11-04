@@ -341,10 +341,13 @@ static int rtl8150_open(struct net_device *netdev)
         // 2.3) submit int urb
         usb_submit_urb(dev->intr_urb, GFP_KERNEL);
 
-
+        // 3) reset device and configure it
         enable_net_traffic(dev);
+        
+        // netif_carrier_on(netdev) if link_status on
         set_carrier(netdev);
 
+        // allow transmission
         netif_start_queue(netdev);
 
         return res;
