@@ -279,4 +279,42 @@ static int rtl8150_open(struct net_device *netdev)
 
         return res;
 }
+/*
+enum netdev_tx {
+        __NETDEV_TX_MIN  = INT_MIN,     // make sure enum is signed 
+        NETDEV_TX_OK     = 0x00,        // driver took care of packet 
+        NETDEV_TX_BUSY   = 0x10,        // driver tx path was busy
+        NETDEV_TX_LOCKED = 0x20,        // driver tx lock was already taken 
+};
+typedef enum netdev_tx netdev_tx_t;
+*/
+static netdev_tx_t rtl8150_start_xmit(struct sk_buff *skb,
+                                      struct net_device *netdev)
+{
+        rtl8150_t *dev = netdev_priv(netdev);
+        int count, res;
+
+        netif_stop_queue(netdev);
+        count = (skb->len < 60) ? 60 : skb->len;
+        count = (count & 0x3f) ? count : count + 1;
+        dev->tx_skb = skb;
+        usb_fill_bulk_urb(dev->tx_urb, dev->udev, usb_sndbulkpipe(dev->udev, 2),
+                      skb->data, count, write_bulk_callback, dev);
+        if ((res = usb_submit_urb(dev->tx_urb, GFP_ATOMIC))) {
+                /* Can we get/handle EPIPE here? */
+                if (res == -ENODEV)
+                        netif_device_detach(dev->netdev);
+                else {
+                        dev_warn(&netdev->dev, "failed tx_urb %d\n", res);
+                        netdev->stats.tx_errors++;
+                        netif_start_queue(netdev);
+                }
+        } else {
+                netdev->stats.tx_packets++;
+                netdev->stats.tx_bytes += skb->len;
+                netdev->trans_start = jiffies;
+        }
+
+        return NETDEV_TX_OK;
+}
 
