@@ -120,9 +120,8 @@ reference to read: https://lwn.net/Articles/604287/
 			* return kmalloc_caches[index];
 		* void *ret = slab_alloc(cachep, flags, caller);
 
-* `get_free_page`: one single page, page aligned,
-
 * `__get_free_pages`: allocate 2^arg pages (from 2^0 to 2^11 = 2048 pages = 8MB)
+    * alloc_pages() -> alloc_pages_current() -> __alloc_pages_nodemask() -> zoned buddy allocator
 
 * slab cache/allocator: for allocation sizes that are needed frequently. Keeps pools of slabs.
 	* `kmem_cache_t * kmem_cache_create()`: create pool of slabs
@@ -257,52 +256,70 @@ vmalloc()
 
 # Inside Disk-Based File System
 
-UNIX file types
-regular files
-directories
-special files: character/block devices: /dev/name, they have M/m numbers
-sockets: no /dev/name, no M/m numbers, they use interfaces
-FIFO
-symbolic links
-Regular files
-no structure, no end-of-file character
-stored in 4KB data blocks -> wastes space for small files, more efficient I/O on larger files
-data blocks can be contiguous or fragmented -> can degrade performance
-each file (of any type) -> one inode
-i_block[] : array of block numbers, or extents, where data is
-i_rdev: major and minor number for the case of special device
-each inode an unique number -> filesystem has inode table
-directory: table to convert filename into inode number
-file system
-inode table -> file refered by inode number
-identify file:  M/m number->disk partition, inode numb -> file within disk
-directory
-type of file, but with a structure -> slots with filename and inode number
-identify file -> pwd from task_struct for task, filename for directory in that path -> namei()
-basic filesystem
-implemented in disk partition
-block 0: boot block, block 1: superblock, 2-n: inode table, n+1-z: data blocks
-superblock
-number of inodes, number of blocks, block size, … -> tune2fs
-journaling filesystem
-Journaling Block Device layer
-transaction within I/O operation is performed in memory -> logged by journal into memory buffer -> written to journal on disk
-all transactions completed in memory and logged by journal -> commit record in log -> atomic state
-sync operation (write in memory to disk) -> sync record to log
-boot-up, if journal has transaction record without sync -> system crashed -> perform operations that have commit in log
-ext4
-block 0: boot block
-block groups: 6 components each
-copy of superblock
-block group descriptor: struct ext4_group_desc
-two bit maps: for data blocks and inodes
-data blocks and indirect blocks
-block based fs (ext2, ext3)
-inode -> array i_block[]: 15 elements:
-0-11 pointers to data blocks (48 KB max)
-12 ptr -> single indirect block -> array of 1024 block data pointers: max 4MB file
-13 ptr-> double indirect block -> 1024 SIBs: max 4GB file
-14 ptr -> triple indirect block -> 1024 DIBs: max 2TB file
+* UNIX file types
+    * regular files
+    * directories
+    * special files: character/block devices: /dev/name, they have M/m numbers
+    * sockets: no /dev/name, no M/m numbers, they use interfaces
+    * FIFO
+    * symbolic links
+
+* Regular files
+	* no structure, no end-of-file character
+	* stored in 4KB data blocks -> wastes space for small files, more efficient I/O on 	* larger files
+	* data blocks can be contiguous or fragmented -> can degrade performance
+	
+* each file (of any type) -> one inode
+	* i_block[] : array of block numbers, or extents, where data is
+	* i_rdev: major and minor number for the case of special device
+	* each inode an unique number -> filesystem has inode table
+	* directory: table to convert filename into inode number
+	
+* file system
+	* inode table -> file refered by inode number
+	* identify file:  M/m number->disk partition, inode numb -> file within disk
+	
+* directory
+	* type of file, but with a structure -> slots with filename and inode number
+```
+../                                                                                                   
+./
+embeddedbook.md
+essentiallinuxbook.md
+internalsclass.md
+```
+	* identify file -> pwd from task_struct for task, filename for directory in that path -> namei()
+
+* basic filesystem
+	* implemented in disk partition
+	* block 0: boot block, block 1: superblock, 2-n: inode table, n+1-z: data blocks
+	
+* superblock: number of inodes, number of blocks, block size, … -> tune2fs
+
+* journaling filesystem
+	* Journaling Block Device layer
+	* transaction within I/O operation is performed in memory -> logged by journal into memory buffer -> written to journal on disk
+	* all transactions completed in memory and logged by journal -> commit record in log -> atomic state
+	* sync operation (write in memory to disk) -> sync record to log
+	* boot-up, if journal has transaction record without sync -> system crashed -> perform operations that have commit in log
+
+### ext4
+
+* block 0: boot block
+* block groups: 6 components each
+	* copy of superblock
+	* block group descriptor: struct ext4_group_desc
+	* two bit maps: for data blocks and inodes
+	* data blocks and indirect blocks
+	
+### block based fs (ext2, ext3)
+
+* inode -> array i_block[]: 15 elements:
+	* 0-11 pointers to data blocks (48 KB max)
+	* 12 ptr -> single indirect block -> array of 1024 block data pointers: max 4MB file
+	* 13 ptr-> double indirect block -> 1024 SIBs: max 4GB file
+	* 14 ptr -> triple indirect block -> 1024 DIBs: max 2TB file
+	
 extent-based: inode has extent descriptors -> array of contiguous data blocks
 
 
