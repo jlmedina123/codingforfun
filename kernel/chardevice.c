@@ -22,7 +22,16 @@ MODULE_AUTHOR("jaymedina@apple.com");
 static char device_buffer[DRIVER_BUFFER_SIZE];
 static atomic_t currently_opened; 
 static DEFINE_SPINLOCK(lock); // used to serialize access to times_opened
-static unsigned int major;
+
+static dev_t device_number; // major and minor number in same variable
+struct class *class;
+struct cdev cdev;
+/* macros to get M/m number:
+ * MAJOR(device_number) = major number
+ * MINOR(device_number) = minor number
+ * MKDEV(minor, major) = dev_t vble with both numbers
+ */
+
 
 /* file operations  */
 static int dev_open(struct inode *, struct file *);
