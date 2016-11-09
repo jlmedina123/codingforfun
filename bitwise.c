@@ -90,6 +90,12 @@
                 ((a & 0xFF0000) >> 8) |\
                 ((a & 0xFF000000) >> 24))
 
+
+
+#define toupper(c) ((c) >= ’a’ && (c) <= ’z’? (c) + ’A’ - ’a’: (c))
+#define tolower(c) ((c) >= ’A’ && (c) <= ’Z’? (c) + ’a’ - ’A’: (c))
+
+
 uint32_t merge_m_into_n(uint32_t m, uint32_t n, int i, int j) {
     // 1) clear bits from i to j in n
     uint32_t mask = ((1<<(i-j+1))-1)<<j;
@@ -102,8 +108,8 @@ uint32_t merge_m_into_n(uint32_t m, uint32_t n, int i, int j) {
     // 3) merge
     return m | n_clear;
 }
-   
-    
+                         // clear m bits i:j           clear n outside of bits i:j            
+#define merge(m, n, i, j) ((m & ~(((1<<i-j+1)-1)<<j))  | (n & ((1<<i-j+1)-1)<<j))
     
   
 int islittleendian() {
@@ -188,13 +194,13 @@ unsigned int swaporderbits(unsigned int a) {
     return swapped;
 }
  
-int ispoweroftwo(int a) {
+int ispoweroftwo(int a) {  // ??
     /* ex: 4 = 100b -> 4 & 3 = 100 & 011 = 0
            5 = 101b -> 5 & 4 = 101 & 100 = 100 */
     return !((a & (a-1))==0);
 }
  
-int ispoweroftwo2(int a) {
+int iseven(int a) {  // ??
     return !(a & 1);
 }
  
@@ -284,6 +290,29 @@ uint64_t swapnibble64bit(uint64_t var) {
 #define swapnibble64bitmacro(var) \
  ((((var) & 0xF0F0F0F0F0F0F0F0)>>4) | (((var) & 0x0F0F0F0F0F0F0F0F) <<4))
  
+
+
+
+/* fixed-point math:
+ * http://stackoverflow.com/questions/10067510/fixed-point-arithmetic-in-c-programming
+ *
+ * Stores values multiplied by a certain amount. 
+ * Uses integer arithmetic but still representing fractions 
+ */
+
+// Assuming uint32
+#define SHIFT 16 // integer 16 bits, fraction 16 bits
+#define SHIFT_MASK ((1 << SHIFT) - 1)
+#define store(value) (value << SHIFT)        // eg: uint32 a = store(5);
+// for +, -: need to use store: a += store(10);
+// for *, /: no need to shift: a /= 2;
+#define retrieve(value) (value >> SHIFT)    // eg: printf("%d", retrieve(a))
+#define fractiondouble(value) ((double)(value & SHIFT_MASK) / (1 << SHIFT))
+// eg: printf("%f", fractiondouble(a));
+
+
+
+
 int main () {
 
     // testing bitwise macros

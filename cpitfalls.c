@@ -170,6 +170,7 @@ printf ("%s", p);   // invalid
    signed overflow is undefined
    Wrong way to check if two positive signed integers overflow when summed
  */
+int a, b;
 if (a + b < 0)
     overflow();
  

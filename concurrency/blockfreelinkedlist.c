@@ -63,9 +63,10 @@ void insertorder(struct node ** list, struct node *new) {
                  break;
              }
              new->next = *list;
-         } while(!__sync_bool_compare_and_swap(list,// ptr to update (first node), type struc node ** 
-                                         new->next, // old value (I copied it into here), type struct node * 
-                                         new));     // list should now point to new node, type struct node *
+         } while(!__sync_bool_compare_and_swap(
+                     list,// ptr to update (first node), type struc node ** 
+                     new->next, // old value (I copied it into here), type struct node * 
+                     new));     // list should now point to new node, type struct node *
      }
      if (ret) return;
 
@@ -83,9 +84,10 @@ void insertorder(struct node ** list, struct node *new) {
          // try to insert
          new->next = ptr;
          //prev->next = new;  // CAS:      
-     } while (!__sync_bool_compare_and_swap(&(prev->next), // ptr to update
-                                            ptr,  // old value (points to currently next node) 
-                                            new));  // we want it to point to our new node
+     } while (!__sync_bool_compare_and_swap(
+                 &(prev->next), // ptr to update
+                 ptr,  // old value (points to currently next node) 
+                 new));  // we want it to point to our new node
 }
 
 void insertfirst(struct node ** list, struct node *new) {
