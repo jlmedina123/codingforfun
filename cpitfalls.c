@@ -252,3 +252,13 @@ switch (a) {
         case A: ...
         case B: ...
         }
+
+
+static volatile unsigned * const foo = 8; // const pointer
+char * a = "asdf";  // allocates string in read-only, and a points to it
+int * b = 4;        // warning: integer to pointer conversion
+int * c = (int *)4;       // correct, but deferencing it will cause sigsev
+int * const d = (int *)4; // correct
+int * e = (int *)4;       // correct
+const int * f = (int *)4; // correct
+

@@ -64,7 +64,6 @@ uint32_t i2c1_receive(uint8_t address, uint8_t* buffer, uint32_t length)
   
 uint32_t i2c1_send(uint8_t address, uint8_t* buffer, uint32_t length) {
     // check software FSM
-    flashOnboardLED(1,1000000);
      
     if (i2c1_busy)
     {  
@@ -82,21 +81,17 @@ uint32_t i2c1_send(uint8_t address, uint8_t* buffer, uint32_t length) {
     num_transferred = 0;
   
     // trigger a start condition
-    flashOnboardLED(2,1000000);
     LPC_I2C1->I2CONSET = STA;
-    flashOnboardLED(3,1000000);
      
     // wait for completion
     while (i2c1_busy);
-    flashOnboardLED(4,1000000);
      
     // get how many bytes were transferred
-    myprintf("send");
     return num_transferred;
 }
  
 extern "C" void I2C1_IRQHandler(void) {
-    flashOnboardLED(1,1000000);
+    
     // get reason for interrupt
     uint8_t status = LPC_I2C1->I2STAT;
   
