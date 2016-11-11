@@ -1,5 +1,26 @@
 
 
+#ifdef __GNUC__
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#else
+#define likely(x)       (x)
+#define unlikely(x)     (x)
+#endif
+
+
+#ifdef DEBUG
+#define printt(fmt, ...) \
+    do { \
+        struct timeb tp; \
+        ftime(&tp); \
+        printf("%ld.%d: " fmt, tp.time, tp.millitm, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define printt(...) while(0){}
+
+
+
 /* prints error if return value is equal to errrtn */
 #define ec_et(var, errrtn) \
     {\

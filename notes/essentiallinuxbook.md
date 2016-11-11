@@ -1,3 +1,58 @@
+# 2 Concurrency
+
+* Cases (UP: uniprocessor, SMP: symmetric multiprocessing)
+	1. 2 threads in proc context, UP, no preemption: no locking
+	2. 2 threads in proc context, 1 in interrupt context, UP, no preemption:
+		* process: local_irq_disable() 
+		* ISR: no locking
+	3. 2 threads in proc context, 1 in interrupt context, UP, preemption:
+		* process: spin_lock_irqsave()
+		* ISR: no locking
+	4. processes and ISR, SMP, preemption:
+		* process: spin_lock_irqsave()
+		* ISR: spin_lock()
+        
+
+https://www.kernel.org/doc/Documentation/locking/spinlocks.txt
+
+* ISRs run with IRQ disabled on ALL CPUs, so they dont need to be reentrant
+
+* spin lock irq disable:
+    * disabled interrupts on local CPU
+    * guarantee only one thread-of-control in critical section
+    * works for UP and SMP
+
+```
+spinlock_t lock;
+spin_lock_init(&private->lock);
+unsigned long flags;
+spin_lock_irqsave(&lock, flags);
+// ... critical section here ..
+spin_unlock_irqrestore(&lock, flags);
+```
+   
+* read write lock irq disable
+    * multiple reades, one writer
+    * requires more operations than spinlocks, so worth it only if critical section long
+    * RCUs are usually preferable (eg: for list traversal)
+
+* spin_lock
+    * ok only with process context
+    * if locked by process context, 
+        * ok if ISR locks in another CPU: ISR will wait for process to release
+        * deadlock if ISR locks in same CPU: process preempted, so it never runs 
+ 
+
+* memory barriers
+    * They impose a perceived partial ordering over the memory operations on either side of the barrier.
+Such enforcement is important because the CPUs and other devices in a system
+can use a variety of tricks to improve performance, including reordering,
+deferral and combination of memory operations; speculative loads; speculative
+branch prediction and various types of caching.  Memory barriers are used to
+override or suppress these tricks, allowing the code to sanely control the
+interaction of multiple CPUs and/or devices
+
+
 # 6 Serial
 
 UART: chip to implement serial communication
