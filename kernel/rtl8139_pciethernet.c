@@ -20,7 +20,8 @@
 #define IOWRITE32_F(reg, val32) do { iowrite32((val32), ioaddr + (reg)); \
                                      ioread32(ioaddr + (reg)); } while(0)                                   
 
-/* PCI addressable regions:
+/* 
+ *  PCI addressable regions:
  *  - configuration space
  *  - I/O ports
  *  - device memory
@@ -29,11 +30,25 @@
  *  - pci_read_config_byte(), pci_write_config_byte()
  *  - I/O region: pci_resource_start(), request_region()/pci_request_region(), inl()/outl()
  *  - memory region: pci_resource_start(), request_mem_region()/pci_request_region(), pci_iomap()
- *  DMA
- *  - consistent/coherent: pci_alloc_consistent()
- *  - streaming:
+ *  
+ *  DMA: capability to transfer data from device to memory without CPU intervention
+ *  - initiated by DMA master. DMA controller in south bridge, or PCI device can initiate DMA transfers.
+ *  - must ensure CPU cache coherency
+ *  - synchronous (eg: process writes to LCD), async (eg: NIC)
+ *  - 24-bit buses like ISA can only access DMA buffers in bottom 16 MB
+ *  - if PCI buse 32-bit wide, DMA buffer in bottom 4GB
+ *  - check bus width with pci_set_dma_mask(pdev, DMA_64/32BIT_MASK)
+ *  - consistent/coherent: guarantees consistency between memory and CPU cache. Used when 
+ *    CPU and device neet to frequently manipulate buffer. Also used with DMA descriptors
+ *      + pci_alloc_consistent()
+ *  - streaming: doesnt guarantee cache coherency. when device owns buffer for long period of 
+ *    time. Common when each DMA operation on different buffer. Driver has to map buffer for device
+ *    and then unmap it for CPU to use
  *      + pci_map_single(): single DMA buffer
  *      + pci_map_sg(): list of scatter-gather DMA buffers
+ *  - Bounce buffers: buffers in DMA region used temporarily if DMA is requested from non-DMA region
+ *  - If DMA data scattered over discontiguous regions, sg buffers gathers the contents of the scattered
+ *    buffers in one DMA request
  */
 
 /*
@@ -151,15 +166,6 @@ static int my_pci_probe(struct pci_dev *my_pci_dev,
      * PCI system
      */
 
-    // PCI addressing: bus, device, function
-    // PCI regions or address spaces:
-    //     - Configuration space: 256B/function PCI, 4KB/function PCIe. First 64B are
-    //       standard (VendorID, DeviceID, BA 0-5, IRQ line, 
-    //     - I/O ports
-    //     - Device memory
-    // Each PCI device implemnts up to I/O regions. Usually I/O registers in 
-    // memory regions
-    
     // 1) Enable PCI device 
     rval = pci_enable_device(my_pci_dev);
     if (rval) {
@@ -186,7 +192,7 @@ static int my_pci_probe(struct pci_dev *my_pci_dev,
     request_region(mmio_start, mmio_len, DRV_NAME);
  
     // 6) maps IO region. Creates virtual mapping to PCI BAR 
-    // Returns __iomem address to device BAR
+    // Returns __iomem address to device BAR number given
     // It checks if region MMIO or PMIO, and calls pci_ioport_map() or ioremap() 
     // Address can be used with iowrite and ioread funcs. They hide details of MM/PMIO
     // ioremap: assigns kernel virtual addr to device io memory region
@@ -640,9 +646,9 @@ out:
     return IRQ_HANDLED;
 }
  
-MODULE_AUTHOR("J Luis Medina");
+MODULE_AUTHOR("Jay Medina");
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_DESCRIPTION("PCI driver for the PCI Ethernet card on my laptop");
+MODULE_DESCRIPTION("RTL8139 NIC driver simplified");
  
 module_init(my_init);
 module_exit(my_exit);

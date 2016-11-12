@@ -5,11 +5,11 @@
  
 #define PAGE_SIZE 4096
  
-int main (int argc, char **argv )
+int main(int argc, char **argv)
 {
     int configfd;
     configfd = open("/sys/kernel/debug/mmap_example", O_RDWR);
-    if(configfd < 0) {
+    if (configfd < 0) {
         perror("open");
     return -1;
     }

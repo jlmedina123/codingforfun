@@ -59,12 +59,25 @@ int my_open(struct inode *inode, struct file *filp);
 int my_close(struct inode *inode, struct file *filp);
 int my_mmap(struct file *filp, struct vm_area_struct *vma);  // attaches VMA ops to this VMA
 
+static const struct file_operations my_fops = {
+    .open = my_open,
+    .release = my_close,
+    .mmap = my_mmap,
+};
+
+
 /*
  * VMA operations
  */
 void mmap_open(struct vm_area_struct *vma);
 void mmap_close(struct vm_area_struct *vma);
 int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf); // maps faulting virtual addr to page
+
+struct vm_operations_struct mmap_vm_ops = {
+    .open =     mmap_open,
+    .close =    mmap_close,
+    .fault =    mmap_fault,
+};
 
 
  
@@ -113,12 +126,6 @@ int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
     vmf->page = page;
     return 0;
 }
- 
-struct vm_operations_struct mmap_vm_ops = {
-    .open =     mmap_open,
-    .close =    mmap_close,
-    .fault =    mmap_fault,
-};
  
 int my_mmap(struct file *filp, struct vm_area_struct *vma)
 {

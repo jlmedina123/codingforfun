@@ -11,36 +11,36 @@
 
 * task_struct
     * related tasks:
-        1. pid_t pid
-        2. struct list_head thread_group -> list of threads within process
-        3. struct list_head children -> list of all children
-        4. struct list_head siblings -> list of all children from same parent
-        5. struct task_struct *parent ->all tasks in siblings list point to same parent
-    * struct cred *cred -> process credentials. User user_struct has struct cred. Task points to the user’s struct cred.
+        1. `pid_t pid`
+        2. `struct list_head thread_group` -> list of threads within process
+        3. `struct list_head children` -> list of all children
+        4. `struct list_head siblings` -> list of all children from same parent
+        5. `struct task_struct *parent` ->all tasks in siblings list point to same parent
+    * `struct cred *cred` -> process credentials. User user_struct has struct cred. Task points to the user’s struct cred.
         1. uid (user id), gid (group id),
         2. (struct group_info *)group_info
         3. (struct user_struct *)user: processes, files, etc
     * signal management:
-        1. struct signal_struct *signal -> for management of signals
+        1. `struct signal_struct *signal` -> for management of signals
 rlim[]: resource limits for CPU, file size, data memory, stack, etc
 number of context switches, page faults, etc
-        2. struct sighand_struct *sighand -> array of signal handlers registered by   task
-        3. struct sigpending pending -> signals pending (received)
+        2. `struct sighand_struct *sighand` -> array of signal handlers registered by   task
+        3. `struct sigpending pending` -> signals pending (received)
     * files:
         1. `struct files_struct *files` -> structure with file descriptor table, which has entries with pointers to files opened
-        2. `struct fdtable __rcu *fdt;`
-        3. `struct file __rcu **fd;      /* current fd array */`
-        4. `struct file __rcu * fd_array[NR_OPEN_DEFAULT];`
-        5. `struct fs_struct *fs` -> file system information, such as pwd
+        	* `struct fdtable __rcu *fdt;`
+        		* `struct file __rcu **fd;      /* current fd array */`
+        	* `struct file __rcu * fd_array[NR_OPEN_DEFAULT];`
+        2. `struct fs_struct *fs` -> file system information, such as pwd
     * memory management:
-        1. struct mm_struct *mm -> memory management
-        2. void *stack -> points to bottom of kernel stack associated with the user task
+        1. `struct mm_struct *mm` -> memory management
+        2. `void *stack` -> points to bottom of kernel stack associated with the user task
     * scheduler:
-        1. struct sched_class *sched_class
-        2. struct sched_entity se
-        3. struct sched_rt_entity rt
-        4. uint rt_priority
-    * struct thread_struct thread
+        1. `struct sched_class *sched_class`
+        2. `struct sched_entity se`
+        3. `struct sched_rt_entity rt`
+        4. `uint rt_priority`
+    * `struct thread_struct thread`
 
 * per-task kernel stack
 	* 2 pages (8KB) for 32-bit, 8 pages (32KB) for 64-bit system
@@ -71,11 +71,37 @@ number of context switches, page faults, etc
 	* old: interrupt or trap 0x80 -> calls system_call()
 	* new: instruction SYSENTER -> calls sysentre_entry()
 * every syscall has an assigned number
-* sys_call_ptr_t sys_call_table[__NR_syscall_max+1]: pointers to syscall routines.  Eg: sys_read, sys_write, etc
+* `sys_call_ptr_t sys_call_table[__NR_syscall_max+1]`: pointers to syscall routines.  Eg: sys_read, sys_write, etc
 * flow:
 	1. application calls open from library
 	2. library: save args and syscall no in CPU registers (eax syscall no, ebx arg1, ecx arg2, etc), executes SYSENTER
 	3. kernel: sysenter_entry() gets syscall no from eax > index to sycall_table -> sys_routine()
+	
+
+```
+SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+
+#define SYSCALL_DEFINEx(x, sname, ...)              \
+    SYSCALL_METADATA(sname, x, __VA_ARGS__)         \
+    __SYSCALL_DEFINEx(x, sname, __VA_ARGS__)
+    
+#define __SYSCALL_DEFINEx(x, name, ...)                 \
+    asmlinkage long sys##name(__MAP(x,__SC_DECL,__VA_ARGS__));  \
+    static inline long SYSC##name(__MAP(x,__SC_DECL,__VA_ARGS__));  \
+    asmlinkage long SyS##name(__MAP(x,__SC_LONG,__VA_ARGS__));  \
+    asmlinkage long SyS##name(__MAP(x,__SC_LONG,__VA_ARGS__))   \
+    {                               \
+        long ret = SYSC##name(__MAP(x,__SC_CAST,__VA_ARGS__));  \
+        __MAP(x,__SC_TEST,__VA_ARGS__);             \
+        __PROTECT(x, ret,__MAP(x,__SC_ARGS,__VA_ARGS__));   \
+        return ret;                     \
+    }                               \
+    SYSCALL_ALIAS(sys##name, SyS##name);                \
+    static inline long SYSC##name(__MAP(x,__SC_DECL,__VA_ARGS__))
+    
+```
+
+
 
 reference to read: https://lwn.net/Articles/604287/
 
@@ -111,21 +137,25 @@ reference to read: https://lwn.net/Articles/604287/
 	* virtual addr returned is physical addr + PAGE_OFFSET ( 1:1 logical mapping)
 	* 128KB limit per allocation
 	* not page aligned
-	* buddy system to avoid fragmentation: hash bucket linked lists of free memory in power of 2s (32B to 128 KB) -> min 32 B and max 128 KB. use __get_free_pages for more. Can waste up to 50% memory
+	* buddy system with slab allocator to avoid fragmentation: hash bucket linked lists of free memory in power of 2s (32B to 128 KB) -> min 32 B and max 128 KB. use __get_free_pages for more. Can waste up to 50% memory
 	* GFP_KERNEL:  `(__GFP_WAIT | __GFP_IO | __GFP_FS)` -> can sleep and reschedule (for paging out if needed)
 	* GFP_ATOMIC: `(__GFP_HIGH)` -> access emergency pools
-	* implementation: kmalloc ->__do_kmalloc
-		* cachep = kmalloc_slab(size, flags): finds kmem_cache structure for the size
-			* index = size_index[size_index_elem(size)];
-			* return kmalloc_caches[index];
-		* void *ret = slab_alloc(cachep, flags, caller);
+	
+```
+kmalloc ->__do_kmalloc
+	 cachep = kmalloc_slab(size, flags): finds kmem_cache structure for the size
+			index = size_index[size_index_elem(size)];
+			return kmalloc_caches[index];
+	 void *ret = slab_alloc(cachep, flags, caller);
+```
 
 * `__get_free_pages`: allocate 2^arg pages (from 2^0 to 2^11 = 2048 pages = 8MB)
-    * alloc_pages() -> alloc_pages_current() -> __alloc_pages_nodemask() -> zoned buddy allocator
+    * `alloc_pages() -> alloc_pages_current() -> __alloc_pages_nodemask()` -> zoned buddy allocator
 
-* slab cache/allocator: for allocation sizes that are needed frequently. Keeps pools of slabs.
+* slab/cache allocator: for allocation sizes that are needed frequently. Keeps pools of slabs.
 	* `kmem_cache_t * kmem_cache_create()`: create pool of slabs
-	* `kmem_cache_alloc(kmem_cache_t * cache, flags)`: allocate slab of memory
+	* `void * kmem_cache_alloc(kmem_cache_t * cache, flags)`: allocate slab of memory
+	* `void kmem_cache_destroy(struct kmem_cache *s)`
 
 * vmalloc:
 	* allocates pageable memory from kernel’s virtual address space
@@ -135,13 +165,17 @@ memory from VMALLOC_START to VMALLOC_END range
 	* Only for software buffers used only by CPU
 	* Causes less fragmentation, so recommended for large CPU buffers
 
-* mem_pool: allocation is not allowed to fail, from pool of memory 
-* alloc_bootmem: large contiguous allocation at boot-time
+* memory pools: allocation is not allowed to fail and can't sleep. Preallocate memory and reserve it until it is needed
+	* `mempool_t * mempool_create()` 
+	* `void * mempool_alloc(mempool_t *pool, gfp_t gfp_mask)`
+	* `void mempool_free(void *element, mempool_t *pool)`
+* Boot Memory Allocator: alloc_bootmem: large contiguous allocation at boot-time
 * per-cpu variable:
 	* each processor gets independent copy, avoid locking (unless process moved to different processor, or preempted within critical section
 	* user space requests values -> sum values for all processors
-	* dynamic: void *alloc_percpu(type), per_cpu_ptr(), put_cpu()
-	* static: define_per_cpu(), get_cpu_var(), put_cpu_var()
+	* dynamic: `void *alloc_percpu(type)`, `per_cpu_ptr()`, `put_cpu()`
+	* static: `define_per_cpu()`, `get_cpu_var()`, `put_cpu_var()`
+	
 * others (dont allocate):
 	* `ioremap(), ioremap_nocache(), pci_iomap()`: for mmio. maps bus memory into CPU space. It makes bus memory accessible to CPU via readb/l/w and writeb/l/w. Maps (it creates PTE entries) device memory to kernel virtual addr space. Address returned cannot be used directly deferenced by CPU. Use wrappers write/readb/w/l()
 	* `request_mem_region`: for mmio. to reserver range of physical addresses that device maps and uses
@@ -212,12 +246,12 @@ represented by struct pglist_data
 	* page in PTE reserved to map 1024 high pages into low memory via kmap
 	* last 128 MB of kernel addr space used for temporary mapping of high-memory page frames
 	* techniques for mapping:
-		* kmap: maps high memory permanently to low memory
-		* kmap_atomic: temporary: mapped through window in kernel virtual addr space (page table entry reserved)
-		* vmalloc: allocates physically non-contiguous memory. Maps allocated pages into contiguous kernel virtual space
-		* ioremap: maps bus memory into CPU space. It makes bus memory accessible to CPU via readb/l/w and writeb/l/w. Maps (it creates PTE entries) device memory to kernel virtual addr space
-		* request_mem_region: to reserve range of physical addresses that device maps and uses
-		* remap_pfn_range: reserves virtual address range and maps it to range of physical pages that were previously allocated. Usually used for mmap implementation. Allows direct access to device memory or kernel memory from user space
+		* `kmap`: maps high memory permanently to low memory
+		* `kmap_atomic`: temporary: mapped through window in kernel virtual addr space (page table entry reserved)
+		* `vmalloc`: allocates physically non-contiguous memory. Maps allocated pages into contiguous kernel virtual space
+		* `ioremap`: maps bus memory into CPU space. It makes bus memory accessible to CPU via readb/l/w and writeb/l/w. Maps (it creates PTE entries) device memory to kernel virtual addr space
+		* `request_mem_region`: to reserve range of physical addresses that device maps and uses
+		* `remap_pfn_range`: reserves virtual address range and maps it to range of physical pages that were previously allocated. Usually used for mmap implementation. Allows direct access to device memory or kernel memory from user space
 
 ```
 vmalloc()
@@ -243,10 +277,10 @@ vmalloc()
 
 * Page fault: virtual addr doesn’t have entry in page table, or physical page is not allocated, or its’s allocated but paged out, or can’t write to it. 
 	* Cases:
-		* _PAGE_PRESENT bit off, frame available -> page not in physical memory, it was paged out
-		* _PAGE_PRESENT bit off, frame NULL -> page not allocated. eg: malloc
-		* _PAGE_PRESENT bit on, _PAGE_RW bit off, when trying to write to page -> allocate new page. eg: COW
-	* page fault handler: exception -> do_page_fault
+		* `_PAGE_PRESENT` bit off, frame available -> page not in physical memory, it was paged out
+		* `_PAGE_PRESENT` bit off, frame NULL -> page not allocated. eg: malloc
+		* `_PAGE_PRESENT` bit on, `_PAGE_RW` bit off, when trying to write to page -> allocate new page. eg: COW
+	* page fault handler: exception -> `do_page_fault`
 		* get faulting address from CPU
 		* find_VMA()
 			* faulting address above task’s VMA -> SIGSEV if user mode -> termination of task
@@ -274,13 +308,32 @@ vmalloc()
 	* i_rdev: major and minor number for the case of special device
 	* each inode an unique number -> filesystem has inode table
 	* directory: table to convert filename into inode number
-	
+
+```
+struct file {
+   struct inode        *f_inode;   /* cached value */
+   const struct file_operations    *f_op;
+   ... }
+struct inode {
+    blkcnt_t        i_blocks;
+    dev_t           i_rdev;
+    union {
+        struct pipe_inode_info  *i_pipe;
+        struct block_device *i_bdev;
+        struct cdev     *i_cdev;
+    };
+    ... }  
+     
+```
+ 
 * file system
 	* inode table -> file refered by inode number
 	* identify file:  M/m number->disk partition, inode numb -> file within disk
 	
 * directory
 	* type of file, but with a structure -> slots with filename and inode number
+	* identify file -> pwd from task_struct for task, filename for directory in that path -> namei()
+	
 ```
 ../                                                                                                   
 ./
@@ -288,13 +341,23 @@ embeddedbook.md
 essentiallinuxbook.md
 internalsclass.md
 ```
-	* identify file -> pwd from task_struct for task, filename for directory in that path -> namei()
 
-* basic filesystem
-	* implemented in disk partition
-	* block 0: boot block, block 1: superblock, 2-n: inode table, n+1-z: data blocks
+* basic fs structure
+	* fs implemented within disk partition, which is carved up into blocks (eg 4KB)
+	* Block 0: boot block: no longer used
+	* Block 1: superblock: information about full fs
+	* Block 2-n: inode table. Number of inodes set by sysadmin at fs creation. Can run out
+	* Others: data blocks  
 	
 * superblock: number of inodes, number of blocks, block size, … -> tune2fs
+
+```
+struct super_block {
+   dev_t           s_dev; 
+   struct list_head    s_inodes;   /* all inodes */
+   struct list_head    s_mounts;   
+   struct block_device *s_bdev;
+```
 
 * journaling filesystem
 	* Journaling Block Device layer
@@ -303,24 +366,27 @@ internalsclass.md
 	* sync operation (write in memory to disk) -> sync record to log
 	* boot-up, if journal has transaction record without sync -> system crashed -> perform operations that have commit in log
 
+### ext 3
+
+* supports journaling
+* supports larger file size than ext2
+* block based:
+	* inode -> i_block[] array of 15 elements (addresses to blocks)
+		* 0 - 11: pointers directly to data blocks ->  12*4KB = 48KB max file size
+		* 12: SIB (single indirect block): array of 1024 pointers -> 1024*4KB = 4MBs max file size
+		* 13: DIB (double indirect block): array of 1024 SIB pointers -> 4GB max size
+		* 15: TIB: 2TB size
+
+
 ### ext4
 
-* block 0: boot block
+* block 0: boot sector (not used)
 * block groups: 6 components each
 	* copy of superblock
 	* block group descriptor: struct ext4_group_desc
 	* two bit maps: for data blocks and inodes
 	* data blocks and indirect blocks
-	
-### block based fs (ext2, ext3)
-
-* inode -> array i_block[]: 15 elements:
-	* 0-11 pointers to data blocks (48 KB max)
-	* 12 ptr -> single indirect block -> array of 1024 block data pointers: max 4MB file
-	* 13 ptr-> double indirect block -> 1024 SIBs: max 4GB file
-	* 14 ptr -> triple indirect block -> 1024 DIBs: max 2TB file
-	
-extent-based: inode has extent descriptors -> array of contiguous data blocks
+* extent-based: inode has i_block[] array of extent descriptors -> array of contiguous data blocks. Writes/reads are usually contiguous, so many times they use only one extent
 
 
 # Kernel Filesystem Structures
@@ -452,7 +518,10 @@ struct file -> private_data -> struct socket
 ops
 sk_buff: associated with a data packet sent/received
 head, data, tail, end
-11) Linux Process Scheduling
+
+
+
+# 11) Linux Process Scheduling
 
 performance: response time and system throughoutput
 real time: for time-critical applications, system must response within guaranteed predictable time
