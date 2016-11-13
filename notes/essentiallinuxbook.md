@@ -1,21 +1,57 @@
 # 2 Concurrency
 
+
+* ISRs: run with IRQ disabled on ALL CPUs => doesnt need to be reentrant
+* softirq: run with softirq disabled on local CPU => doesnt need reentrant, but protect global data => use spin_lock or per-cpu variables for global data
+* timer: same as tasklet
+* tasklets: run with tasklet disabled on ALL CPUs => doesnt need reentrant
+
+* spin_lock_irqsave: disables interrupts on local CPU (so ISR is not preempted by higher priority ISR)
+* spin_lock_bh: disables software interrupts on local CPU, but not hardware interrupts
+
+
+* SMP Linux settings
+	* `CONFIG_SMP` off, `CONFIG_PREEMPT` off: spinlocks dont exist at all
+	* `CONFIG_SMP` off, `CONFIG_PREEMPT` on: spin_lock_irqsave() = local_irq_disable()
+
+	
 * Cases (UP: uniprocessor, SMP: symmetric multiprocessing)
-	1. 2 threads in proc context, UP, no preemption: no locking
-	2. 2 threads in proc context, 1 in interrupt context, UP, no preemption:
-		* process: local_irq_disable() 
+	1. 2 threads in proc context, CONFIG_SMP off, CONFIG_PREEMPT off: 
+		* no locking
+	2. 2 PC, UP, preemption: 
+		* mutex: threads holding lock is preempted, next thread will lock and sleep. Can cause priority inversion.
+	3. 2 threads in proc context, 1 in interrupt context, UP, no preemption:
+		* process: `local_irq_save()`.
 		* ISR: no locking
-	3. 2 threads in proc context, 1 in interrupt context, UP, preemption:
-		* process: spin_lock_irqsave()
+	4. 2 threads in proc context, 1 in interrupt context, UP, preemption:
+		* process: `spin_lock_irqsave()`
 		* ISR: no locking
-	4. processes and ISR, SMP, preemption:
-		* process: spin_lock_irqsave()
-		* ISR: spin_lock()
+	5. processes and ISR, CONFIG_SMP on, CONFIG_PREEMPT on::
+		* process: `spin_lock_irqsave()`
+		* ISR: `spin_lock()`
+	6. ISR and device, CONFIG_SMP on, CONFIG_PREEMPT on:
+		* ISR: `spin_lock_irqsave()`. IRQ disabled on all CPUs, but ISR could be interrupted by higher priority ISR. During that time device might access critical section 
+	7. softirq (or tasklet, timers) and process context (CONFIG_SMP on, CONFIG_PREEMPT on)
+		* PC spin_lock_bh: disables softirqs on local CPU (or spin_lock_irq) 
+		* softirq: spin_lock to protect from same softirq on different CPU (assuming data was global)
+	8. two same softirqs (global data)
+		* spin_lock, or per-CPU variables. The same softirq could be running on a different CPU
+	9. two different softirqs
+		* spin_lock
+	8. same tasklets/timers:
+		* tasklets never run concurrently on two CPU, so no need to lock
+	9. two different tasklets/timers:
+		* spin_lock. No need to disable tasklet (spin_lock_bh), since tasklets disable tasklet on all CPUs
+	10. ISR and softirq
+		* hard IRQ: spin_lock (can't be preempted by soft IRQ)
+		* soft IRQ: spin_lock_irqsave (to avoid being preempted by hard IRQ)
+	11. Two different ISR
+		* spin_lock_irqsave  
+
+https://www.kernel.org/pub/linux/kernel/people/rusty/kernel-locking/c214.html
+
         
-
 https://www.kernel.org/doc/Documentation/locking/spinlocks.txt
-
-* ISRs run with IRQ disabled on ALL CPUs, so they dont need to be reentrant
 
 * spin lock irq disable:
     * disabled interrupts on local CPU
@@ -32,7 +68,7 @@ spin_unlock_irqrestore(&lock, flags);
 ```
    
 * read write lock irq disable
-    * multiple reades, one writer
+    * multiple readers, one writer
     * requires more operations than spinlocks, so worth it only if critical section long
     * RCUs are usually preferable (eg: for list traversal)
 
@@ -42,16 +78,84 @@ spin_unlock_irqrestore(&lock, flags);
         * ok if ISR locks in another CPU: ISR will wait for process to release
         * deadlock if ISR locks in same CPU: process preempted, so it never runs 
  
-
 * memory barriers
-    * They impose a perceived partial ordering over the memory operations on either side of the barrier.
-Such enforcement is important because the CPUs and other devices in a system
-can use a variety of tricks to improve performance, including reordering,
+    * They impose a perceived partial ordering over the memory operations on either side of the barrier. Such enforcement is important because the CPUs and other devices in a system can use a variety of tricks to improve performance, including reordering,
 deferral and combination of memory operations; speculative loads; speculative
 branch prediction and various types of caching.  Memory barriers are used to
 override or suppress these tricks, allowing the code to sanely control the
 interaction of multiple CPUs and/or devices
+	* needed if
+		* If operation affects multiple CPUs
+		* atomic operations that dont imply memory barriers 
+		* accessing memory mapped devices
 
+```
+#define smp_mb__before_atomic_dec() barrier()
+#define smp_mb__after_atomic_dec() barrier()
+#define smp_mb__before_atomic_inc() barrier()
+#define smp_mb__after_atomic_inc() barrier()
+ 
+#define barrier() __asm__ __volatile__("": : :"memory")
+```
+
+* atomic operators
+	* set/read on x86: any aligned pointer, aligned long, int, or char can be used for atomic set/read as long as ACCESS_ONCE and memory barriers are used to avoid compiler optimizations  
+	* Add, subtract, increment, decrease: use lock, so they dont need memory barriers 
+	* set_bit, clear_bit, change_bit	
+	* test_and_set_bit, test_and_clear_bit, test_and_change_bit
+	* atomic_cmpxchg	
+
+```
+
+typedef struct {
+u64 __aligned(8) counter;
+} atomic64_t;
+ 
+typedef struct {
+volatile int counter;
+} atomic_t;
+
+// read and set
+atomic_t = struct volatile { int counter; }
+#define atomic_read(v) ((v)->counter)
+#define atomic_set(v,i) (((v)->counter) = (i))
+
+// access once
+#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+
+void atomic_add(int i, atomic_t *v);
+void atomic_sub(int i, atomic_t *v);
+void atomic_inc(atomic_t *v);
+void atomic_dec(atomic_t *v);
+ 
+static inline void atomic_add(int i, atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "addl %1,%0"		: "+m" (v->counter)
+		: "ir" (i));
+}
+static inline void atomic_inc(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "incl %0"
+		: "+m" (v->counter));
+}
+
+#define LOCK_PREFIX \
+	".section .smp_locks,\"a\"\n" \
+	_ASM_ALIGN "\n" \
+	_ASM_PTR "661f\n" /* address */ \
+	".previous\n" \
+	"661:\n\tlock;
+
+```
+
+* seqlocks: read-write locks where writers are favored
+
+* RCU: 
+	* reader dont get blocked by writers
+	* writers use callback mechanism. data update when all readers complete
+	* useful when data is more read than written
+
+		
 
 # 6 Serial
 
@@ -178,7 +282,7 @@ ssize_t read(struct file *file, char *buf, size_t count, loff_t *p) {
 
 ## Map driver
 
-* Enable MTD device (implemented as platform device
+* Enable MTD device (implemented as platform device)
 
 ```
 // 1) define partitions
@@ -202,7 +306,7 @@ struct platform_device myplatdev = {
 // 4) define platform driver
 struct platform_driver myplatdriver = {
 	.driver = { .name = "name", },
-	.prove = myprobe, }; 
+	.probe = myprobe, }; 
 
 static int __init module_init() {
 	
@@ -235,7 +339,7 @@ static int myprobe(struct platform_device *pdev) {
 	...
 	
 	// 4) probe flash with a MTD chip driver
-	do_map_probe("cfi_probe, mymydriver);
+	do_map_probe((char *)"cfi_probe", (struct *map_info)mymydriver); // cfi_probe, jedec_probe, map_rom, map_ram, ...
 	
 	// 5) register MTD partition
 	struct mtd_info * mymtd;
@@ -285,11 +389,6 @@ struct nand_ecclayout {
 $ mkfs -t ext2 /dev/mtdblock/2
 $ mount /dev/mtdblock/2 /mnt
 ```
-* 
-	* 
-		* JFFS2: implements log structure -> power-down relaible, increase life span
 
-	
-* Support raw I/O -> flash device as character device
 
 	

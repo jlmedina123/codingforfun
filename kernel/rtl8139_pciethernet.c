@@ -27,19 +27,30 @@
  *  - device memory
  *  There are 6 I/O or memory regions, addresses can be read from BAR 0-5
  *  Access to regions:
- *  - pci_read_config_byte(), pci_write_config_byte()
- *  - I/O region: pci_resource_start(), request_region()/pci_request_region(), inl()/outl()
- *  - memory region: pci_resource_start(), request_mem_region()/pci_request_region(), pci_iomap()
- *  
+ *  - Config space: 
+ *	pci_read_config_byte(pdev, offset), pci_write_config_byte(pdev, offset)
+ *  - Query I/O region: 
+ *	iobase = pci_resource_start/end/flags(pcidev, bar), 
+ *      pci_request_region(pdev, bar): calls request_mem_region or request_mem with start and len
+ *  - memory-map I/O region:
+ *	request_mem_region(), 
+ *      pci_iomap()
+ *      iowrite8/16/32(data, ioaddr, reg)
+ *      data = ioread8/16/32(ioaddr, reg) 
+ *  - port-map I/O region:
+ *      request_region()
+ *      data = inl(iobase, REGISTEROFFSET)
+ *      outl(data, iobase, REGISTEROFFSET)
+ * 
  *  DMA: capability to transfer data from device to memory without CPU intervention
  *  - initiated by DMA master. DMA controller in south bridge, or PCI device can initiate DMA transfers.
  *  - must ensure CPU cache coherency
  *  - synchronous (eg: process writes to LCD), async (eg: NIC)
  *  - 24-bit buses like ISA can only access DMA buffers in bottom 16 MB
- *  - if PCI buse 32-bit wide, DMA buffer in bottom 4GB
+ *  - if PCI bus 32-bit wide, DMA buffer in bottom 4GB
  *  - check bus width with pci_set_dma_mask(pdev, DMA_64/32BIT_MASK)
  *  - consistent/coherent: guarantees consistency between memory and CPU cache. Used when 
- *    CPU and device neet to frequently manipulate buffer. Also used with DMA descriptors
+ *    CPU and device need to frequently manipulate buffer. Also used with DMA descriptors
  *      + pci_alloc_consistent()
  *  - streaming: doesnt guarantee cache coherency. when device owns buffer for long period of 
  *    time. Common when each DMA operation on different buffer. Driver has to map buffer for device
@@ -50,6 +61,15 @@
  *  - If DMA data scattered over discontiguous regions, sg buffers gathers the contents of the scattered
  *    buffers in one DMA request
  */
+
+
+/*
+static int __pci_request_region(struct pci_dev *pdev, int bar,
+    if (pci_resource_flags(pdev, bar) & IORESOURCE_IO) {
+           request_region(pci_resource_start(pdev, bar), pci_resource_len(pdev, bar), res_name))
+    else (pci_resource_flags(pdev, bar) & IORESOURCE_MEM) {
+           __request_mem_region(pci_resource_start(pdev, bar), pci_resource_len(pdev, bar), res_name, exclusive))
+*/
 
 /*
  * PCI entry points prototypes
@@ -189,7 +209,7 @@ static int my_pci_probe(struct pci_dev *my_pci_dev,
     }
  
     // 5) take ownership of region (ensures you have exclusive access to region)
-    request_region(mmio_start, mmio_len, DRV_NAME);
+    request_mem_region(mmio_start, mmio_len, DRV_NAME); // or pci_request_regions (pdev, DRV_NAME);
  
     // 6) maps IO region. Creates virtual mapping to PCI BAR 
     // Returns __iomem address to device BAR number given
@@ -322,8 +342,8 @@ static int netdev_open(struct net_device *net_dev) {
     // pci_alloc_consistent:
     //      paddr = alloc_pages_exact() -> __get_free_pages(): allocates pages and gets physical addr
     //      kvaddr = ioremap_nocache((unsigned long)paddr, size): gets kernel virtual address
-    //      dma_addr = plat_kernel_addr_to_dma(dev, paddr): gets bus address (platform dependent)
-    // returns CPU addr and bus addr     
+    //      dma_handle = plat_kernel_addr_to_dma(dev, paddr): gets bus address (platform dependent)
+    // returns kvaddr  and dma_handle (bus addr)     
     cpu_addr = pci_alloc_consistent(priv->pdev,
                                     TOTAL_RX_BUF_SIZE,
                                     &pcidev_addr);

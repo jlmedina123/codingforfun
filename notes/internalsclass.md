@@ -7,6 +7,25 @@
 * exceptions: sync, due to some error
 * trap: cause change in operation mode of system. eg: trap to switch from user mode to kernel mode
 
+
+https://0xax.gitbooks.io/linux-insides/content/Interrupts/interrupts-1.html
+
+### Interrupts:
+
+* Old machines PIC
+* APIC: two parts
+	* Local APIC: one on each CPU core. Responsible for handling the CPU-specific interrupt configuration. Interrupts from local CPU devices (APIC timer, thermal sensors, etc)
+	* I/O APIC: provides multiprocessor interrupt management. Distributes external interrupts among CPU cores
+
+* Interrupt Descriptor Table (IDT): maintains address of each interrupt handler. 
+* Processor uses vector number as index to IDT (0 - 255). 0-31 reserved for archictecture defined interrupts and exceptions. 32-255 for user-defined interrupts
+* Types of interrupts:
+	* external or hardware generated: async
+	* software generated or exceptions: synchronous. 3 types
+		* faults: reported before the execution of a faulty instruction. fault is corrected and program continues
+		* traps: reported after execution of the trap instruction
+		* aborts: does not report the exact instruction that caused it. program can't continue
+
 # Process management
 
 * task_struct
@@ -67,6 +86,9 @@ number of context switches, page faults, etc
 
 # System calls
 
+Syscall is userspace request of a kernel service
+
+
 * mode switch
 	* old: interrupt or trap 0x80 -> calls system_call()
 	* new: instruction SYSENTER -> calls sysentre_entry()
@@ -76,28 +98,75 @@ number of context switches, page faults, etc
 	1. application calls open from library
 	2. library: save args and syscall no in CPU registers (eax syscall no, ebx arg1, ecx arg2, etc), executes SYSENTER
 	3. kernel: sysenter_entry() gets syscall no from eax > index to sycall_table -> sys_routine()
-	
+
+
+### Example
+
+
+movl: move long (4 bytes)
+movq: move quadword (8 bytes)
+% = variable is register
+
+```
+x86_64 general purpose registers: %rax	%rbx	%rcx	%rdx	%rsi	%rdi	%rbp	%rsp	%r8 	%r9	 %r10	%r11	%r12	%r13	%r14	%r15
+
+
+Global Symbol		MOVQ x, %rax
+Immediate			MOVQ $56, %rax
+Register			MOVQ %rbx, %rax
+Indirect			MOVQ (%rsp), %rax
+Base-Relative		MOVQ -8(%rbp), %rax
+Offset-Scaled-Base-Relative	MOVQ -16(%rbx,%rcx,8), %rax
+```
+
+
+```
+.data
+
+msg:
+    .ascii "Hello, world!\n"
+    len = . - msg
+
+.text
+    .global _start
+
+_start:
+    movq  $1, %rax   // syscall number 1 (write)
+    movq  $1, %rdi   // first input arg  (stdout=1)
+    movq  $msg, %rsi // second input arg (addr string)
+    movq  $len, %rdx // third input arg  (len sting)
+    syscall           
+
+    movq  $60, %rax  // sycall number 60 (exit)
+    xorq  %rdi, %rdi
+    syscall
+```
+
+* syscall instruction: invokes handler for given system call
+* system call table defines a number for each syscall handler
+
+
+```
+0	common	read			sys_read
+1	common	write			sys_write
+2	common	open			sys_open
+```
+
+
+* use general purpose registers to pass data to syscall:
+	* number of syscall is passed via RAX register
+	* arguments passed via RDI, RSI, RDX
+
+    
+Syscall macros:	
+
 
 ```
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 
-#define SYSCALL_DEFINEx(x, sname, ...)              \
+#define SYSCALL_DEFINEx(x, sname, ...)      \
     SYSCALL_METADATA(sname, x, __VA_ARGS__)         \
     __SYSCALL_DEFINEx(x, sname, __VA_ARGS__)
-    
-#define __SYSCALL_DEFINEx(x, name, ...)                 \
-    asmlinkage long sys##name(__MAP(x,__SC_DECL,__VA_ARGS__));  \
-    static inline long SYSC##name(__MAP(x,__SC_DECL,__VA_ARGS__));  \
-    asmlinkage long SyS##name(__MAP(x,__SC_LONG,__VA_ARGS__));  \
-    asmlinkage long SyS##name(__MAP(x,__SC_LONG,__VA_ARGS__))   \
-    {                               \
-        long ret = SYSC##name(__MAP(x,__SC_CAST,__VA_ARGS__));  \
-        __MAP(x,__SC_TEST,__VA_ARGS__);             \
-        __PROTECT(x, ret,__MAP(x,__SC_ARGS,__VA_ARGS__));   \
-        return ret;                     \
-    }                               \
-    SYSCALL_ALIAS(sys##name, SyS##name);                \
-    static inline long SYSC##name(__MAP(x,__SC_DECL,__VA_ARGS__))
     
 ```
 
@@ -129,17 +198,36 @@ reference to read: https://lwn.net/Articles/604287/
 	* UMA: all CPUs have consistent view of memory -> all memory a single chunk
 	* NUMA: memory and CPU more tightly linked -> chunks of memory -> nodes
 
-
+https://www.kernel.org/doc/gorman/html/understand/understand009.html
+https://linux-mm.org/PageAllocation
+	 
 ### Kernel memory allocation:
 
+
+
+* Binary Buddy Allocator
+	* combines power-of-two allocator, and free buffer coalescing
+	* memory broken into blocks of pages, each block has a power of two number of pages
+	* If block of desired size not available, larger block is broken in two _buddies_. One used for allocation, and the other free.
+	* When block freed, if buddy is free both buddies are coalesced
+	* Allocation API: input args are gfp_flags and allocation order (2^n pages)		* alloc_page, alloc_pages
+		* get_free_pages
+		* get_dma_pages 
+	* All functions call __alloc_pages()
+		* iterates through each zone checking if pages available
+		* if all fail, call kswapd for each zone, and iterate again
+		* if fail, give up if GFP_ATOMIC, or try_to_free_pages(), which calls cond_resched() (sleeps)
+		* if fail, call OOM Killer	  
+		
+* kernel stack is very small (2 or 4 pages). Static allocation is discouraged. Use dynamic allocation for arrays
 * kmalloc:
 	* allocates pinned contiguous physical memory, mapped to contiguous kernel virtual addresses, from kernel’s heap
 	* virtual addr returned is physical addr + PAGE_OFFSET ( 1:1 logical mapping)
 	* 128KB limit per allocation
 	* not page aligned
-	* buddy system with slab allocator to avoid fragmentation: hash bucket linked lists of free memory in power of 2s (32B to 128 KB) -> min 32 B and max 128 KB. use __get_free_pages for more. Can waste up to 50% memory
-	* GFP_KERNEL:  `(__GFP_WAIT | __GFP_IO | __GFP_FS)` -> can sleep and reschedule (for paging out if needed)
-	* GFP_ATOMIC: `(__GFP_HIGH)` -> access emergency pools
+	* uses slab allocator to avoid fragmentation: hash bucket linked lists of free memory in power of 2s (32B to 128 KB) -> min 32 B and max 128 KB. use __get_free_pages for more. Can waste up to 50% memory
+	* GFP_KERNEL:  `(__GFP_WAIT | __GFP_IO | __GFP_FS)` -> can sleep, cat start disk IO, can start filesystem io
+	* GFP_ATOMIC: `(__GFP_HIGH)` -> can access emergency pools
 	
 ```
 kmalloc ->__do_kmalloc
@@ -149,7 +237,7 @@ kmalloc ->__do_kmalloc
 	 void *ret = slab_alloc(cachep, flags, caller);
 ```
 
-* `__get_free_pages`: allocate 2^arg pages (from 2^0 to 2^11 = 2048 pages = 8MB)
+* `__get_free_pages`: uses page allocator (alloc_pages). allocates 2^arg pages (from 2^0 to 2^11 = 2048 pages = 8MB)
     * `alloc_pages() -> alloc_pages_current() -> __alloc_pages_nodemask()` -> zoned buddy allocator
 
 * slab/cache allocator: for allocation sizes that are needed frequently. Keeps pools of slabs.
@@ -158,12 +246,22 @@ kmalloc ->__do_kmalloc
 	* `void kmem_cache_destroy(struct kmem_cache *s)`
 
 * vmalloc:
-	* allocates pageable memory from kernel’s virtual address space
-memory from VMALLOC_START to VMALLOC_END range
+	* allocates pageable memory with page allocator and maps them into contiguous kernel virtual space
 	* can’t be used outside of processor (such as DMA, PCI device), because they need MMU translation
 	* Needs to build page tables for the memory allocated (like ioremap, but with allocation). Kernel has single large page table entry on top of kernel region for this non-logical mapping, needed if memory > 1 GB.
 	* Only for software buffers used only by CPU
 	* Causes less fragmentation, so recommended for large CPU buffers
+
+```
+return __vmalloc_node_range(size, 
+								  align, 
+								  VMALLOC_START, VMALLOC_END,
+                            gfp_mask = GFP_KERNEL | __GFP_HIGHMEM, 
+                            prot, 
+                            node = NUMA_NO_NODE, 
+                            caller);
+                                
+```
 
 * memory pools: allocation is not allowed to fail and can't sleep. Preallocate memory and reserve it until it is needed
 	* `mempool_t * mempool_create()` 
@@ -188,10 +286,10 @@ memory from VMALLOC_START to VMALLOC_END range
 * each node -> Linux builds independent memory management subsystem
 * local allocation: linux will try to perform memory allocation for the node from that CPU
 represented by struct pglist_data
-	* node_id: 0 always for UMA
-	* node_start_pfn: physical page number of first memory frame (0 for UMA)
-	* node_present_pages: numb pages in node
-	* node_zones: array with zones for the node
+	* `node_id`: 0 always for UMA
+	* `node_start_pfn`: physical page number of first memory frame (0 for UMA)
+	* `node_present_pages`: numb pages in node
+	* `node_zones`: array with zones for the node
 * watermarks to wake up kswapd if low in memory
 * mem_map[]: array of struc page types for each physical page
 
@@ -209,12 +307,12 @@ represented by struct pglist_data
 * 64-bit process: 8 regions: 3 kernel, data/stacks, text, shared memory, 32-bit emulation
 * current->mm: struct mm_struct: manages address space of task
 	* `struct vm_area_struct *mmap`, `struct rb_root mm_rb`  -> to list of VMAs: describes layout of memory region
-		* vm_start, vm_end, vm_flags
-		* vm_file -> if VMA for memory mapped file, points to entry in kernel’s file table entry associated with file
-		* vm_pgoff: page count within file wheren mapping begins
-		* vm_next, vm_rb: point to list of VMAs for that task (ordered by address and in a hash chain based of Red/Black tree)
-	* mmap_cache -> last VMA used, for find_vma(). if miss, traverse mm_rb
-	* pgd_t * pgd: pointer to page table for process
+		* `vm_start`, `vm_end`, `vm_flags`
+		* `vm_file` -> if VMA for memory mapped file, points to entry in kernel’s file table entry associated with file
+		* `vm_pgoff`: page count within file wheren mapping begins
+		* `vm_next`, `vm_rb`: point to list of VMAs for that task (ordered by address and in a hash chain based of Red/Black tree)
+	* `mmap_cache` -> last VMA used, for find_vma(). if miss, traverse mm_rb
+	* `pgd_t * pgd`: pointer to page table for process
 	* indexes for regions: start/end_code, start_end_data, start_brk, brk, start_stack, etc
 
 * address translation 32-bits
@@ -391,84 +489,81 @@ struct super_block {
 
 # Kernel Filesystem Structures
 
-file descriptors
-current->(struct files_struct *)files->fd_array
-syscalls open/dup/socket -> assigns one file descriptor to fd_array; pipe -> assigns two fd
-stdin, stdout, stderr
-si=open(“/dev/tty7”, O_RDONLY) or si=open(“/dev/tty7”, O_RDWR);
-so=open(/dev/tty7″, WRONLY) or so=dup(si)
-se=dup(si)
-fd_array = [si, so, se]
-each entry in fd_array points to opened file represented by struct file
+
+### file descriptors
+
+* current->(struct files_struct *)files->fd_array
+* syscalls open/dup/socket -> assigns one file descriptor to fd_array; pipe -> assigns two fd
+	* stdin, stdout, stderr
+		* si=open(“/dev/tty7”, O_RDONLY) or si=open(“/dev/tty7”, O_RDWR);
+		* so=open(/dev/tty7″, WRONLY) or so=dup(si)
+		* se=dup(si)
+		* fd_array = [si, so, se]
+* each entry in fd_array points to opened file represented by struct file
 f_list netx, prev
 f_op
 f_pos
-memory-mapped file I/O
-open file and access it -> file’s pages loaded into kernel disk cache buffer  -> copied into user’s buffer -> overhead
-mmap: file’s pages are mapped to the task’s page table, and a VMA is added task’s address space
-mmap returns starting addr where file mapped -> use it as ptr to array of bytes in memory
- flags:
-MAP_ANONYMOUS flag creates anonymous mappings
-MAP_SHARED: a write updates page cache immediately (other processes see it)
-MAP_PRIVATE: a write performs COW and allocates new local copy of page
-Direct IO: 
-I/O operations buffered though kernel-space buffer
-I/O directly to user-space buffer (opposite of mmap) -> improves performance for large amounts of data
-no_pages = get_user_pages(current, current->mm, …, pages)
-if no DMA: kmap each page
-if DMA: create s/g list from pages array: dma_map_sg(…, sg, …)
-if pages written: setPageDirty(page)
-page_cache_release(page)
-1
-2
-3
-4
-5
-6
-7
-8
-9
-// user space  process mapping file:
-int fd = open("somefile", ORDWR);
-char * fp = mmap(NULL, len, PROT_READ, flags, fd, 0);
-for (i = 0; i&amp;amp;lt;len; i++) printf("%c", *fp++); // driver performing direct I/O: down_read(current-&amp;amp;gt;mm-&amp;amp;gt;mmap_sem);
-result = get_user_pages(current, current-&amp;amp;gt;mm, ...);
-up_read(current-&amp;amp;gt;mm-&amp;amp;gt;mmap_sem);
-...
-if (! PageReserved(page))
-SetPageDirty(page);
-Signal management
 
-32 posix-defined signals
-signal number -> index into bit mask
-kill syscall -> sends signal to PID
-async signal -> by another process or hardware, to all threads of process (will terminate process anyway)
-sync signal -> sent as result something the process did (eg: SIGSEGV)
-signal delivery:
-posted to bit mask at: task_struct-> (struct sigpending) pending ->(sigset_t) signal
-bit mask checked for pending signals when process returns to user mode
-if signal sent to task sleeping in TASK_INTERRUPTIBLE, sleep cancelled and task returns to user mode
-actions by the process when signal received
-nothing -> process accepts signal and default action occurs
-ignore it ->signal lost
-block it ->delay delivery
-catch/trap/handle signal -> routine will execute (SIGKILL/SIGSTOP cannot be caught)
-sigaction syscall -> handle signal
-Device I/O
+### memory-mapped file I/O
 
-character device: I/O one character at a time, file type ‘c’
-block device: I/O through buffer in chunks, for random access, part of filesystem, file type ‘b’
-device loaded:
-character: cdev_add() -> struct cdev to cdev list with name of device and pointer to device’s file operations
-block: gendisk_register() -> struct gendisk added to list
-device for special file: ‘mknod /dev/mydev type(c,b,p) M n’ -> creates node, and stores M/n (same as device driver)
-int fd = open(“/dev/rmt0”, O_RDWR)
- 1) copy filename from user space
+* open file and access it -> file’s pages loaded into kernel disk cache buffer, and then copied into user’s buffer -> overhead
+* mmap: file’s pages are mapped to the task’s page table, and a VMA is added task’s address space
+* mmap returns starting addr where file mapped -> use it as ptr to array of bytes in memory
+* flags:
+	* MAP_ANONYMOUS flag creates anonymous mappings
+	* MAP_SHARED: a write updates page cache immediately (other processes see it)
+	* MAP_PRIVATE: a write performs COW and allocates new local copy of page
+
+### Direct IO: 
+
+* I/O operations buffered though kernel-space buffer
+* I/O directly to user-space buffer (opposite of mmap) -> improves performance for large amounts of data
+* data blocks move directly between the storage device and user-space memory without going through the page cache. Useful for databases
+
+* no_pages = get_user_pages(current, current->mm, …, pages)
+	* if no DMA: kmap each page
+	* if DMA: create s/g list from pages array: dma_map_sg(…, sg, …)
+ * if pages written: setPageDirty(page)
+ * page_cache_release(page)
+
+### Asynchronous IO
+
+https://www.fsl.cs.sunysb.edu/~vass/linux-aio.txt
+
+method for performing I/O operations so that the
+process that issued an I/O request is not blocked till the data is available.
+Instead, after an I/O request is submitted, the process continues to execute
+its code and can later check the status of the submitted request
+
+Syscalls:
+
+```
+int io_setup(unsigned nr_events, aio_context_t *ctxp);
+int io_destroy(aio_context_t ctx);
+int io_submit(aio_context_t ctx, long nr, struct iocb *cbp[]);
+int io_cancel(aio_context_t ctx, struct iocb *, struct io_event *result);
+int io_getevents(aio_context_t ctx, long min_nr, long nr,
+			struct io_event *events, struct timespec *timeout);
+```			
+
+
+
+# Device I/O
+
+* character device: I/O one character at a time, file type ‘c’
+* block device: I/O through buffer in chunks, for random access, part of filesystem, file type ‘b’
+* device loaded:
+	* character: cdev_add() -> struct cdev to cdev list with name of device and pointer to device’s file operations
+	* block: gendisk_register() -> struct gendisk added to list
+* device for special file: ‘mknod /dev/mydev type(c,b,p) M n’ -> creates node, and stores M/n (same as device driver)
+
+* int fd = open(“/dev/rmt0”, O_RDWR)
+	1. copy filename from user space
 getname(filename)
 strncpy_from_user()
-2) get first unused file descriptor (will be returned to process)
-int fd = get_unused_fd()
-struct files_struct *files = current->files
+	2. get first unused file descriptor (will be returned to process)
+	3. int fd = get_unused_fd()
+	4. struct files_struct *files = current->files
 3a) get file from filesystem
 struct file *f = file_open(filename)
 open_namei
@@ -485,16 +580,25 @@ control device -> R/W to its registers at addresses in memory addr space or I/O 
 difference between I/O register and RAM: side effects that affect I/O registers
 cache data -> use volatile variable declaration
 instruction reordering -> use memory barriers
-I/O Ports
-some arch have separate R/W electrical lines and special CPU instr to access ports -> separate addr space (only x86)
-request_region: claim port
-access port: [in/out][b/w/l], [in/out]s[b/w/l]
-I/O Memory:
-memory mapped registers: device exposes registers through bus as a memory region
-ioremap: when page tables needed (depends on arch)
-claim memory region: request_mem_region
-access memory: io[read/write][8/16/32], [read/write][b/w/l], do not dereference pointers (due to portability)
+
+### Port mapped IO
+
+* some arch have separate R/W electrical lines and special CPU instr to access ports -> separate addr space (only x86)
+* request_region: claim port
+* access port: [in/out][b/w/l], [in/out]s[b/w/l]
+
+### Memory mapped IO
+
+* memory mapped registers: device exposes registers through bus as a memory region
+* ioremap: when page tables needed (depends on arch)
+* claim memory region: request_mem_region
+* access memory: io[read/write][8/16/32], [read/write][b/w/l], do not dereference pointers (due to portability)
+
+
+# Sockets
+
 Linux Sockets: Type of file used to connect and end-point from a process to another end-point from another process, which can be on another system Address family
+
 
 INET (internet protocol)
 UNIX
@@ -518,6 +622,27 @@ struct file -> private_data -> struct socket
 ops
 sk_buff: associated with a data packet sent/received
 head, data, tail, end
+
+
+
+
+# Signal management
+
+32 posix-defined signals
+signal number -> index into bit mask
+kill syscall -> sends signal to PID
+async signal -> by another process or hardware, to all threads of process (will terminate process anyway)
+sync signal -> sent as result something the process did (eg: SIGSEGV)
+signal delivery:
+posted to bit mask at: task_struct-> (struct sigpending) pending ->(sigset_t) signal
+bit mask checked for pending signals when process returns to user mode
+if signal sent to task sleeping in TASK_INTERRUPTIBLE, sleep cancelled and task returns to user mode
+actions by the process when signal received
+nothing -> process accepts signal and default action occurs
+ignore it ->signal lost
+block it ->delay delivery
+catch/trap/handle signal -> routine will execute (SIGKILL/SIGSTOP cannot be caught)
+sigaction syscall -> handle signal
 
 
 

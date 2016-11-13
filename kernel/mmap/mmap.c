@@ -18,9 +18,10 @@
  * Driver needs to: build page tables for address range, and replace vma->vm_ops 
  * Building page tables:
  *    - all at once: remap_page_range
- *    - one page at a time: nopage method. Finds correct page for address, and 
- *      increments its reference cout. Must be implemented if driver supports
- *      mremap syscall
+ *    - one page at a time: nopage method. 
+ * 	  1) Finds correct page for address (virt_to_page)
+ *        2) Increments its reference cout (get_page) 
+ *      Must be implemented if driver supports mremap syscall
  *
  * fields in struct vm_area_struct:
  *     unsigned long vm_start, vm_end: virtual address range covered
