@@ -10,12 +10,27 @@ a=/*b;  /* a = a/(*b) for some old compilers, comment for newer ones */
 p - > a;         /* illegal */
  
 printf('\n');    /* fails at run-time */
+
 char *a = 'yes'; /* 'yes' is integer composed of values 'y', 'e', 's',
                     typecasted to char */
+
 char *a = "yes"; /* string with three characters and null terminated,
                     in read-only data memory. Cannot change */
 char a[] = "yes"; /* string in read-only data memory. Copied to stack,
                    so it can change */
+
+
+int *d = {1, 2,3, 5}; /* warning: excess elements in scalar initializer 
+                         warning: incompatible integer to pointer conversion 
+                                  initializing 'int *' with an expression of type 'int'
+                        */
+d[3] = 10;            /* segmentation fault */
+
+
+int e[] = {1, 2, 3, 4}; 
+e[3] = 10;              /* works fine */
+
+
 if (flags & FLAG != 0) /* equivalent to if (flags & (FLAG !=0)) */
 r = h<<4 + l;    /* equivalent to r = h << (4 + l); */
                  /* operator precedence:
@@ -254,7 +269,7 @@ switch (a) {
         }
 
 
-static volatile unsigned * const foo = 8; // const pointer
+static volatile unsigned * const foo = 8; // const pointer. warning int to pointer conversion
 char * a = "asdf";  // allocates string in read-only, and a points to it
 int * b = 4;        // warning: integer to pointer conversion
 int * c = (int *)4;       // correct, but deferencing it will cause sigsev

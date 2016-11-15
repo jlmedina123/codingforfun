@@ -54,7 +54,7 @@
  
 // check is pointer is memory aligned to x bytes
 #define isaligned(ptr, bytes) \
-        (((uintptr_t)(ptr) & ~((bytes)-1)) == 0)
+        (((uintptr_t)(ptr) % (bytes)) == 0)
  
 // size of variable without sizeof operator
 // size_t is unsigned int
@@ -194,7 +194,9 @@ unsigned int swaporderbits(unsigned int a) {
     return swapped;
 }
  
-int ispoweroftwo(int a) {  // ??
+int ispoweroftwo(int a) { 
+   // if power of two, only one bit 1, all other zeros
+   // so when 1 bit is zeroed out (a &= (a-1)) 
     /* ex: 4 = 100b -> 4 & 3 = 100 & 011 = 0
            5 = 101b -> 5 & 4 = 101 & 100 = 100 */
     return !((a & (a-1))==0);

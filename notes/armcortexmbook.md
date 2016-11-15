@@ -1,7 +1,96 @@
+# Architecture
+
+* access level: privileged, unprivileged (some memory regions are innaccesible, most NVIC registers innaccessibles)
+* operation states: debug, thumb (running thumb instruction). no ARM state (doesnt support ARM instruction set)
+* operation modes: handler (privileged access), thread (privileged or unprivileged, controlled by register CONTROL)
+
+* Registers
+	* Genral purpose registers: R0-R12
+		* low registers R0-R7 only for 16-bit instructions
+		* high registers R8-R12 for 32-bit instructions, and some 16-bit
+	* SP R13: MSP, PSP (only thread mode). Last two bits zero => addr must be aligned
+	* LR R14: holds return address. Program returns by loading LR into PC
+	* PC R15: read returns addr plus 4, write causes branch operation 
+	* Special registers: not memory mapped, access with instructions MRS and MSR
+		* PSR: APSR, EPSR, IPSR
+		* Exception interrupt masking: PRIMASK, FAULTMASK, BASEPRI
+		* CONTROL: selects SP, and access level in thread mode 
+
+* Memory regions
+	* Program code
+	* Data (SRAM)
+	* Peripherals
+	* Processor's internal control
+
+* Exceptions
+	* events that cause changes to program flow -> processor suspends task and executes handler
+	* Each exception source has an exception number (240 interrupt inputs)
+	* processed by NVIC: IRQs and NMI requests
+		* programmable, regisers in SCS of memory map
+		* nested: interrupts have priority
+		* vector table: array of addresses with handlers. Location at VTOR register (0 after reset) 
+	 	 
+
+# Instruction Set
+
+* based on Thumb-2: 16-bit and 32-bit instructions
+* Addresing mode
+    * immediate addressing: data in instruction. Eg MOV R2, #100
+    * indexed addressing: uses register pointer. Eg LDR R1, =Count
+    * PC-relative addressing: uses PC register as pointer
+* Inserting data in instruction
+    * DCB/W/D
+    * .byte, .word, asciz
+* Suffixes: S, Conditional execution (EQ, NE, LT, GT) if prev operation resulted in this
+
+* Instructions
+    * Moving data within processor: MOV, MRS, MSR
+    * Memory access instructions: 
+        * PC-related offset: LDR R0, =0x3   ; sets R0 to 0x3. Actually DCD 0x3, LDR R0, [PC, #offset] 
+        * register offset: LDR R0, [R1, #0x3]  ; read at addr R1+0x3, store at R0 
+        * write-back: LDR R0, [R1, #0x3]!   ; prev + update R1 to R1+0x3
+        * post-index: LDR R0, [R1], #0x3    ; load mem addr R1 into  R0, then R1 to R1+0x3
+    * Load/store multiple contiguous memory access
+        * LDM/STM IA (increment addr after r/w) / DB (decrement addr before r/w)
+             LDR   R4, =0x80    ; sets R4 to 0x80
+             LDMIA R4, {R0-R3}  ; reads 4 words from mem addr 0x80 to 0x8F and store at R0-R3  
+
+             LDR   R4, =0x8F    ; sets R4 to 0x8F
+             LDMDB R4, {R0-R3}  ; reads 4 words from mem addr 0x8C, 0x88, 0x84, 0x80 and store at R0-R3
+
+             LDR R8, =0x80
+             STMIA R8!, {R0-R3} ; write 4 words from registers R0-R3 into memory 0x80-0x8F, 
+                                  write back 0x90 to R8 after  
+
+    * Stack: uses MSP or PS, depending on processor mode and CONTROL register
+        * Eg: PUSH {R0, R2-44}
+        * function return: 
+            * PUSH {R4-R6, LR} ; save to beginning of subroutine
+            * POP  {R4-R6, PC} ; pop from stack to R4-R6 and to PC directly (return addr). Addr
+                                 in PC triggers a branch
+	* Exclusive access: to build semaphores and mutexes
+		* LDREXB
+		* STREXB
+	* Arithmetic operations
+	* Logic ans shift
+	* typecasting
+	* bit-field instructions
+	* program flow control
+		* branch: instructions that cause branching
+			* B
+			* updating PC
+	 * memory barriers: use when changing configuration
+	 	* DMB
+	 	* DSB         
+                                                  
+            
+
 ## ARM Cortex processor
 
 * Registers
     * 
+
+
 
 
 ARM Cortex-M Assembly
