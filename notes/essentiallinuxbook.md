@@ -6,7 +6,7 @@
 * timer: same as tasklet
 * tasklets: run with tasklet disabled on ALL CPUs => doesnt need reentrant
 
-* spin_lock_irqsave: disables interrupts on local CPU (so ISR is not preempted by higher priority ISR)
+* spin_lock_irqsave: disables ALL interrupts on LOCAL CPU (so ISR is not preempted by higher priority ISR)
 * spin_lock_bh: disables software interrupts on local CPU, but not hardware interrupts
 
 
@@ -28,7 +28,7 @@
 		* ISR: no locking
 	5. processes and ISR, CONFIG_SMP on, CONFIG_PREEMPT on::
 		* process: `spin_lock_irqsave()`
-		* ISR: `spin_lock()`
+		* ISR: `spin_lock()` // irqsave disabled interrupt on local CPU, but interrupt could happe on another CPU
 	6. ISR and device, CONFIG_SMP on, CONFIG_PREEMPT on:
 		* ISR: `spin_lock_irqsave()`. IRQ disabled on all CPUs, but ISR could be interrupted by higher priority ISR. During that time device might access critical section 
 	7. softirq (or tasklet, timers) and process context (CONFIG_SMP on, CONFIG_PREEMPT on)
@@ -47,6 +47,13 @@
 		* soft IRQ: spin_lock_irqsave (to avoid being preempted by hard IRQ)
 	11. Two different ISR
 		* spin_lock_irqsave  
+
+
+* PC and IC, UP, no preemp -> local_irqsave, no locking
+* PC and IC, UP, preemp    -> spin_lock_irqsave, no locking
+* PC and IC, SMP, premmp   -> spin_lock_irqsave, spin_lock
+* softirq global data, or two softirq      -> spin_lock
+* softirq, ISR             -> spin_lock, spin_lock_irqsave
 
 https://www.kernel.org/pub/linux/kernel/people/rusty/kernel-locking/c214.html
 
