@@ -21,9 +21,73 @@
                      }\
                      )
   macro to return value: macro needs to be one expression
- */
 
- 
+*/
+
+/*
+https://gcc.gnu.org/onlinedocs/gcc-5.1.0/cpp/Macros.html
+
+ - object-like macro: give symbolic name to numeric constants
+ - function-like macro: put parenthesis after macro name
+ - stringfication: convert macro argument into string constant. parameter with leading # is replaced
+    with literal text of actual argument
+ - token pasting: two tokes on both sides of ## are combined into single token
+ - variadic macro: accepts variable number of arguments. All tokens in argument list after last named ar
+   argument become variable argument. The sequence of tokens replace identifier __VAR_ARGS__ in the 
+   macro body (or the name before the ..., such as myargs...)
+
+#define eprintf1(...) 		 fprintf(stderr, __VA_ARGS__)
+#define eprintf2(myargs...)	 fprintf(stderr, myargs)
+#define eprintf3(format, ...) fprintf(stderr, format, __VAR_ARGS__) // needs at least one input variable
+	eprintf3("hello", ); // wrong
+	eprintf3("hello");   // correct, expands to fprintf(stderr, "hello", );
+
+#define eprintf4(format, ...) fprintf(stderr, format, ##__VAR_ARGS__) // removes comma if no var_args
+	eprintf4("hello);    // correct, expands to fprintf(stderr, "hello");
+
+
+ - predefined macros
+	+ standards: __FILE__, __LINE__, __DATE__, __TIME__, __STDC__, _STDC_VERSION__
+    + common: __COUNTER__, __GNUC__, __INT_MAX__, __BYTE_ORDER__, __ORDER_LITTLE_ENDIAN__, __ORDER_BIG_ENDIAN__
+	+ system specific: 
+ - undefining macros: #undef FOO
+
+macro pitfalls
+ - each macro argument should be sorrounded by paranthesis
+ - full macro in parenthesis as well
+ - macro with compound statments #define FOO(a, b) { a = ...; ...;} is called without ; 
+   To call it like function with ; add #define FOO(a, b) do { a= ...; ...;} while (0) or ({ a=;...;})
+ - #define min(x, y) ({ typeof(X) x_ = (x); ... ; })   call as int a = min(1, 3); 
+
+
+*/
+
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+
+
+#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+
+// example of stringfication and token pasting
+struct command {
+       char *name;
+       void (*function) (void);
+};
+struct command commands[] = {
+       { "quit", quit_command },
+       { "help", help_command },
+       ...
+};
+
+// with macro
+#define COMMAND(NAME)  { #NAME, NAME ## _command }
+struct command commands[] = {
+       COMMAND (quit),
+       COMMAND (help),
+       ...
+};
+
+
 /***
  * some macros for bitwise operations 
  */
@@ -51,7 +115,14 @@
 // align pointer to x bytes boundary
 #define align(ptr, bytes) \
        ((typeof(ptr))(((uintptr_t)(ptr) + (bytes)-1) & ~((bytes)-1)))
- 
+/* aligning to 16 byte boundary
+ *    ptr = (ptr + 15) & ~15 
+ *    0x0F = 0000 1111
+ *    ptr & ~ 0x0F resets the last 4 bits
+ *    if ptr = 1011 1101 -> ptr & 1111 0000 = 1011 0000
+ *    2 byte boundary -> reset 1 bit, ..., 16 byte boundary -> reset 4 bits, 32 byte boundary -> reset 8 bits
+ */
+
 // check is pointer is memory aligned to x bytes
 #define isaligned(ptr, bytes) \
         (((uintptr_t)(ptr) % (bytes)) == 0)

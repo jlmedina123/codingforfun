@@ -7,25 +7,6 @@
 * exceptions: sync, due to some error
 * trap: cause change in operation mode of system. eg: trap to switch from user mode to kernel mode
 
-
-https://0xax.gitbooks.io/linux-insides/content/Interrupts/interrupts-1.html
-
-### Interrupts:
-
-* Old machines PIC
-* APIC: two parts
-	* Local APIC: one on each CPU core. Responsible for handling the CPU-specific interrupt configuration. Interrupts from local CPU devices (APIC timer, thermal sensors, etc)
-	* I/O APIC: provides multiprocessor interrupt management. Distributes external interrupts among CPU cores
-
-* Interrupt Descriptor Table (IDT): maintains address of each interrupt handler. 
-* Processor uses vector number as index to IDT (0 - 255). 0-31 reserved for archictecture defined interrupts and exceptions. 32-255 for user-defined interrupts
-* Types of interrupts:
-	* external or hardware generated: async
-	* software generated or exceptions: synchronous. 3 types
-		* faults: reported before the execution of a faulty instruction. fault is corrected and program continues
-		* traps: reported after execution of the trap instruction
-		* aborts: does not report the exact instruction that caused it. program can't continue
-
 # Process management
 
 * task_struct
@@ -210,13 +191,13 @@ https://linux-mm.org/PageAllocation
 	* memory broken into blocks of pages, each block has a power of two number of pages
 	* If block of desired size not available, larger block is broken in two _buddies_. One used for allocation, and the other free.
 	* When block freed, if buddy is free both buddies are coalesced
-	* Allocation API: input args are gfp_flags and allocation order (2^n pages)		* alloc_page, alloc_pages
-		* get_free_pages
-		* get_dma_pages 
-	* All functions call __alloc_pages()
+	* Allocation API: input args are gfp_flags and allocation order (2^n pages)		* `alloc_page`, `alloc_pages`
+		* `get_free_pages`
+		* `get_dma_pages `
+	* All functions call `__alloc_pages()`
 		* iterates through each zone checking if pages available
 		* if all fail, call kswapd for each zone, and iterate again
-		* if fail, give up if GFP_ATOMIC, or try_to_free_pages(), which calls cond_resched() (sleeps)
+		* if fail, give up if `GFP_ATOMIC`, or `try_to_free_pages()`, which calls `cond_resched()` (sleeps)
 		* if fail, call OOM Killer	  
 		
 * kernel stack is very small (2 or 4 pages). Static allocation is discouraged. Use dynamic allocation for arrays
@@ -269,7 +250,7 @@ return __vmalloc_node_range(size,
 	* `void mempool_free(void *element, mempool_t *pool)`
 * Boot Memory Allocator: alloc_bootmem: large contiguous allocation at boot-time
 * per-cpu variable:
-	* each processor gets independent copy, avoid locking (unless process moved to different processor, or preempted within critical section
+	* each processor gets independent copy, avoid locking (unless process moved to different processor, or preempted within critical section)
 	* user space requests values -> sum values for all processors
 	* dynamic: `void *alloc_percpu(type)`, `per_cpu_ptr()`, `put_cpu()`
 	* static: `define_per_cpu()`, `get_cpu_var()`, `put_cpu_var()`
@@ -278,6 +259,16 @@ return __vmalloc_node_range(size,
 	* `ioremap(), ioremap_nocache(), pci_iomap()`: for mmio. maps bus memory into CPU space. It makes bus memory accessible to CPU via readb/l/w and writeb/l/w. Maps (it creates PTE entries) device memory to kernel virtual addr space. Address returned cannot be used directly deferenced by CPU. Use wrappers write/readb/w/l()
 	* `request_mem_region`: for mmio. to reserver range of physical addresses that device maps and uses
 	* `remap_pfn_range`: for mmap. reserves virtual address range and maps it to range of physical pages that were previously allocated. Usually used for mmap implementation. Allows direct access to device memory or kernel memory from user space. Creates kernel page table entry that points main memory or device memory to virtual address space memory
+
+https://www.kernel.org/doc/htmldocs/deviceiobook/index.html
+
+	* `virt_to_phys` — map virtual addresses to physical
+	* `phys_to_virt` — map physical address to virtual
+	* `ioremap_nocache` — map bus memory into CPU space
+	* `pci_iomap_range` — create a virtual mapping cookie for a PCI BAR
+	* `pci_iomap_wc_range` — create a virtual WC mapping cookie for a PCI BAR
+	* `pci_iomap` — create a virtual mapping cookie for a PCI BAR
+	* `pci_iomap_wc` — create a virtual WC mapping cookie for a PCI BAR
 
 ### node:
 
@@ -311,9 +302,9 @@ represented by struct pglist_data
 		* `vm_file` -> if VMA for memory mapped file, points to entry in kernel’s file table entry associated with file
 		* `vm_pgoff`: page count within file wheren mapping begins
 		* `vm_next`, `vm_rb`: point to list of VMAs for that task (ordered by address and in a hash chain based of Red/Black tree)
-	* `mmap_cache` -> last VMA used, for find_vma(). if miss, traverse mm_rb
+	* `mmap_cache` -> last VMA used, for `find_vma()`. if miss, traverse `mm_rb`
 	* `pgd_t * pgd`: pointer to page table for process
-	* indexes for regions: start/end_code, start_end_data, start_brk, brk, start_stack, etc
+	* indexes for regions: `start/end_code`, `start/end_data`, `start_brk`, `brk`, `start_stack`, etc
 
 * address translation 32-bits
 	* cpu switches to process -> it loads  current->mm->pgd to cr3 register, which loads page tables and flushes TLB
@@ -520,11 +511,29 @@ f_pos
 * I/O directly to user-space buffer (opposite of mmap) -> improves performance for large amounts of data
 * data blocks move directly between the storage device and user-space memory without going through the page cache. Useful for databases
 
-* no_pages = get_user_pages(current, current->mm, …, pages)
+* `no_pages = get_user_pages(current, current->mm, …, pages)`
 	* if no DMA: kmap each page
 	* if DMA: create s/g list from pages array: dma_map_sg(…, sg, …)
- * if pages written: setPageDirty(page)
- * page_cache_release(page)
+ * if pages written: `setPageDirty(page)`
+ * `page_cache_release(page)`
+
+ User space example (http://man7.org/tlpi/code/online/diff/filebuff/direct_read.c.html):
+ 
+ ```
+int main(int argc, char *argv[]) {
+	 size_t length, alignment;
+    off_t offset;
+    
+    char *buf = memalign(alignment, length);
+	
+	int fd = open(argv[1], O_RDONLY | O_DIRECT);
+	lseek(fd, offset, SEEK_SET);
+	ssize_t numRead = read(fd, buf, length);
+	printf("Read %ld bytes\n", (long) numRead);
+	return 0;
+}
+```	
+ 
 
 ### Asynchronous IO
 
@@ -591,7 +600,7 @@ instruction reordering -> use memory barriers
 
 * memory mapped registers: device exposes registers through bus as a memory region
 * ioremap: when page tables needed (depends on arch)
-* claim memory region: request_mem_region
+* claim memory region: `request_mem_region`
 * access memory: io[read/write][8/16/32], [read/write][b/w/l], do not dereference pointers (due to portability)
 
 

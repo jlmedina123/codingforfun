@@ -26,19 +26,26 @@
  *  - I/O ports
  *  - device memory
  *  There are 6 I/O or memory regions, addresses can be read from BAR 0-5
+ *
  *  Access to regions:
  *  - Config space: 
- *	pci_read_config_byte(pdev, offset), pci_write_config_byte(pdev, offset)
+ *	    pci_read_config_byte(pdev, offset), pci_write_config_byte(pdev, offset)
  *  - Query I/O region: 
- *	iobase = pci_resource_start/end/flags(pcidev, bar), 
- *      pci_request_region(pdev, bar): calls request_mem_region or request_mem with start and len
+ *	    pci_resource_start/end/flags(pcidev, bar), 
+ *	    request_mem_region(ulong start, ulong len, char *name) if flags & 
+ *      request_region(uint first, ulong n, const char *name)
+ *      or
+ *      pci_request_region(pdev, bar): checks if port io or mem io via pci_resource_flags, 
+ *                                     pci_resource_start, pci_resource_len, 
+ *                                     and request_mem_region(start, len, name) or 
+ *                                     request_region(start, len, name)
  *  - memory-map I/O region:
- *	request_mem_region(), 
- *      pci_iomap()
+ *      pci_iomap(pdev, bar, maxlen): calls pci_resource_start, pci_resource_len, pci_resource_flags
+ *                                    if flags & IORESOURCE_CACHEABLE: ioremap(start, len)
+ *                                    else: ioremap_nocache(start, len)
  *      iowrite8/16/32(data, ioaddr, reg)
  *      data = ioread8/16/32(ioaddr, reg) 
  *  - port-map I/O region:
- *      request_region()
  *      data = inl(iobase, REGISTEROFFSET)
  *      outl(data, iobase, REGISTEROFFSET)
  * 
@@ -61,6 +68,9 @@
  *  - If DMA data scattered over discontiguous regions, sg buffers gathers the contents of the scattered
  *    buffers in one DMA request
  */
+
+
+// read https://www.kernel.org/doc/Documentation/DMA-API-HOWTO.txt
 
 
 /*
@@ -124,7 +134,7 @@ struct netdev_private {
     struct tasklet_struct tasklet;
  
     // tx data
-    dma_addr_t tx_bufs_dma; // bus addr (for device)
+    dma_addr_t tx_bufs_dma; // bus addr (for device) (typedef unsigned long long dma_addr_t)
     unsigned char *tx_bufs; // virtual kernel addr (for CPU)
     unsigned char *tx_buf[NUM_TX_DESC];
      
@@ -446,7 +456,7 @@ static int netdev_start_xmit(struct sk_buff *skb, struct net_device *net_dev) {
     spin_lock_irqsave(&priv->lock, flags);
     wmb();
     iowrite32(max(skb->len, (unsigned int)ETH_MIN_LEN), 
-              TSD0 + (entry * sizeof(u32) + ioaddr));
+              TSD0 + (entry * sizeof(u32)) + ioaddr);
      
     // 7) Adjust cur_tx pointer
     priv->cur_tx++; //dirty_tx is adjustd in interrupt handler

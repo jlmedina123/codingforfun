@@ -699,10 +699,6 @@ static int get_pipes(struct us_data *us)
 		}
 	}
 
-	if (!ep_in || !ep_out || (us->protocol == USB_PR_CBI && !ep_int)) {
-		usb_stor_dbg(us, "Endpoint sanity check failed! Rejecting dev.\n");
-		return -EIO;
-	}
 
 	/* Calculate and store the pipe values */
 	us->send_ctrl_pipe = usb_sndctrlpipe(us->pusb_dev, 0);
@@ -712,6 +708,7 @@ static int get_pipes(struct us_data *us)
 	us->recv_bulk_pipe = usb_rcvbulkpipe(us->pusb_dev,
 		usb_endpoint_num(ep_in));
 	if (ep_int) {
+	}
 		us->recv_intr_pipe = usb_rcvintpipe(us->pusb_dev,
 			usb_endpoint_num(ep_int));
 		us->ep_bInterval = ep_int->bInterval;
@@ -726,111 +723,20 @@ static int usb_stor_acquire_resources(struct us_data *us)
 	struct task_struct *th;
 
 	us->current_urb = usb_alloc_urb(0, GFP_KERNEL);
-	if (!us->current_urb) {
-		usb_stor_dbg(us, "URB allocation failed\n");
-		return -ENOMEM;
-	}
 
 	/* Just before we start our control thread, initialize
 	 * the device if it needs initialization */
 	if (us->unusual_dev->initFunction) {
 		p = us->unusual_dev->initFunction(us);
-		if (p)
-			return p;
 	}
 
 	/* Start up our control thread */
 	th = kthread_run(usb_stor_control_thread, us, "usb-storage");
-	if (IS_ERR(th)) {
-		dev_warn(&us->pusb_intf->dev,
-				"Unable to start control thread\n");
-		return PTR_ERR(th);
-	}
 	us->ctl_thread = th;
 
 	return 0;
 }
 
-/* Release all our dynamic resources */
-static void usb_stor_release_resources(struct us_data *us)
-{
-	/* Tell the control thread to exit.  The SCSI host must
-	 * already have been removed and the DISCONNECTING flag set
-	 * so that we won't accept any more commands.
-	 */
-	usb_stor_dbg(us, "-- sending exit command to thread\n");
-	complete(&us->cmnd_ready);
-	if (us->ctl_thread)
-		kthread_stop(us->ctl_thread);
-
-	/* Call the destructor routine, if it exists */
-	if (us->extra_destructor) {
-		usb_stor_dbg(us, "-- calling extra_destructor()\n");
-		us->extra_destructor(us->extra);
-	}
-
-	/* Free the extra data and the URB */
-	kfree(us->extra);
-	usb_free_urb(us->current_urb);
-}
-
-/* Dissociate from the USB device */
-static void dissociate_dev(struct us_data *us)
-{
-	/* Free the buffers */
-	kfree(us->cr);
-	usb_free_coherent(us->pusb_dev, US_IOBUF_SIZE, us->iobuf, us->iobuf_dma);
-
-	/* Remove our private data from the interface */
-	usb_set_intfdata(us->pusb_intf, NULL);
-}
-
-/* First stage of disconnect processing: stop SCSI scanning,
- * remove the host, and stop accepting new commands
- */
-static void quiesce_and_remove_host(struct us_data *us)
-{
-	struct Scsi_Host *host = us_to_host(us);
-
-	/* If the device is really gone, cut short reset delays */
-	if (us->pusb_dev->state == USB_STATE_NOTATTACHED) {
-		set_bit(US_FLIDX_DISCONNECTING, &us->dflags);
-		wake_up(&us->delay_wait);
-	}
-
-	/* Prevent SCSI scanning (if it hasn't started yet)
-	 * or wait for the SCSI-scanning routine to stop.
-	 */
-	cancel_delayed_work_sync(&us->scan_dwork);
-
-	/* Balance autopm calls if scanning was cancelled */
-	if (test_bit(US_FLIDX_SCAN_PENDING, &us->dflags))
-		usb_autopm_put_interface_no_suspend(us->pusb_intf);
-
-	/* Removing the host will perform an orderly shutdown: caches
-	 * synchronized, disks spun down, etc.
-	 */
-	scsi_remove_host(host);
-
-	/* Prevent any new commands from being accepted and cut short
-	 * reset delays.
-	 */
-	scsi_lock(host);
-	set_bit(US_FLIDX_DISCONNECTING, &us->dflags);
-	scsi_unlock(host);
-	wake_up(&us->delay_wait);
-}
-
-/* Second stage of disconnect processing: deallocate all resources */
-static void release_everything(struct us_data *us)
-{
-	usb_stor_release_resources(us);
-	dissociate_dev(us);
-
-	/* Drop our reference to the host; the SCSI core will free it
-	 * (and "us" along with it) when the refcount becomes 0. */
-	scsi_host_put(us_to_host(us));
-}
 
 /* Delayed-work routine to carry out SCSI-device scanning */
 static void usb_stor_scan_dwork(struct work_struct *work)
@@ -883,33 +789,27 @@ int usb_stor_probe1(struct us_data **pus,
 	 * space at the end for our private us_data structure.
 	 */
 	host = scsi_host_alloc(&usb_stor_host_template, sizeof(*us));
-	if (!host) {
-		dev_warn(&intf->dev, "Unable to allocate the scsi host\n");
-		return -ENOMEM;
-	}
 
 	/*
 	 * Allow 16-byte CDBs and thus > 2TB
 	 */
 	host->max_cmd_len = 16;
 	host->sg_tablesize = usb_stor_sg_tablesize(intf);
+
 	*pus = us = host_to_us(host);
 	mutex_init(&(us->dev_mutex));
 	us_set_lock_class(&us->dev_mutex, intf);
 	init_completion(&us->cmnd_ready);
 	init_completion(&(us->notify));
 	init_waitqueue_head(&us->delay_wait);
-	INIT_DELAYED_WORK(&us->scan_dwork, usb_stor_scan_dwork);
+	
+    INIT_DELAYED_WORK(&us->scan_dwork, usb_stor_scan_dwork);  // scsi_scan_host
 
 	/* Associate the us_data structure with the USB device */
 	result = associate_dev(us, intf);
-	if (result)
-		goto BadDevice;
 
 	/* Get the unusual_devs entries and the descriptors */
 	result = get_device_info(us, id, unusual_dev);
-	if (result)
-		goto BadDevice;
 
 	/* Get standard transport and protocol settings */
 	get_transport(us);
@@ -919,13 +819,7 @@ int usb_stor_probe1(struct us_data **pus,
 	 * or protocol settings.
 	 */
 	return 0;
-
-BadDevice:
-	usb_stor_dbg(us, "storage_probe() failed\n");
-	release_everything(us);
-	return result;
 }
-EXPORT_SYMBOL_GPL(usb_stor_probe1);
 
 /* Second part of general USB mass-storage probing */
 int usb_stor_probe2(struct us_data *us)
@@ -950,8 +844,6 @@ int usb_stor_probe2(struct us_data *us)
 
 	/* Find the endpoints and calculate pipe values */
 	result = get_pipes(us);
-	if (result)
-		goto BadDevice;
 
 	/*
 	 * If the device returns invalid data for the first READ(10)
@@ -982,24 +874,7 @@ int usb_stor_probe2(struct us_data *us)
 	queue_delayed_work(system_freezable_wq, &us->scan_dwork,
 			delay_use * HZ);
 	return 0;
-
-	/* We come here if there are any problems */
-BadDevice:
-	usb_stor_dbg(us, "storage_probe() failed\n");
-	release_everything(us);
-	return result;
 }
-EXPORT_SYMBOL_GPL(usb_stor_probe2);
-
-/* Handle a USB mass-storage disconnect */
-void usb_stor_disconnect(struct usb_interface *intf)
-{
-	struct us_data *us = usb_get_intfdata(intf);
-
-	quiesce_and_remove_host(us);
-	release_everything(us);
-}
-EXPORT_SYMBOL_GPL(usb_stor_disconnect);
 
 /* The main probe routine for standard devices */
 static int storage_probe(struct usb_interface *intf,
