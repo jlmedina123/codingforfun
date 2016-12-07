@@ -5,14 +5,14 @@
 * operation modes: handler (privileged access), thread (privileged or unprivileged, controlled by register CONTROL)
 
 * Registers
-	* Genral purpose registers: R0-R12
+	* General purpose registers: R0-R12
 		* low registers R0-R7 only for 16-bit instructions
 		* high registers R8-R12 for 32-bit instructions, and some 16-bit
-	* SP R13: MSP, PSP (only thread mode). Last two bits zero => addr must be aligned
+	* SP R13: MSP (main stack pointer), PSP (process stack pointer, only thread mode). Last two bits zero => addr must be aligned
 	* LR R14: holds return address. Program returns by loading LR into PC
-	* PC R15: read returns addr plus 4, write causes branch operation 
+	* PC R15: address of instruction being executed, read returns addr plus 4, write causes branch operation 
 	* Special registers: not memory mapped, access with instructions MRS and MSR
-		* PSR: APSR, EPSR, IPSR
+		* PSR (program status register): APSR (application), EPSR (execution), IPSR (interrupt)
 		* Exception interrupt masking: PRIMASK, FAULTMASK, BASEPRI
 		* CONTROL: selects SP, and access level in thread mode 
 
@@ -26,7 +26,7 @@
 	* events that cause changes to program flow -> processor suspends task and executes handler
 	* Each exception source has an exception number (240 interrupt inputs)
 	* processed by NVIC: IRQs and NMI requests
-		* programmable, regisers in SCS of memory map
+		* programmable, registers in SCS of memory map
 		* nested: interrupts have priority
 		* vector table: array of addresses with handlers. Location at VTOR register (0 after reset) 
 	 	 

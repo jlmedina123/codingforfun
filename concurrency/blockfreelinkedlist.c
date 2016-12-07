@@ -1,4 +1,10 @@
-/* My own implementation for nonblocking concurrent linked list.
+/* 
+   Jay Medina, Sept 2016.
+   This code is just for learning and researching and is mostly
+   junk. If you use it beware it will probably blow up your
+   system.
+
+   My own implementation for nonblocking concurrent linked list.
    It doesnt solve the ABA problem. See Harri's solution for 
    more complete algorithm: 
 
@@ -55,7 +61,8 @@ void insertorder(struct node ** list, struct node *new) {
     if (!*list || (*list)->value > value) {
         ret = 1;
         do {
-             /* Another thread might have beat us and added
+             /* Need to check in case we fail the while below
+              * Another thread might have beat us and added
               * a smaller node in front
               */
              if (*list && (*list)->value < value) {

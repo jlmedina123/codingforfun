@@ -1,4 +1,8 @@
 /*
+ * Jay Medina, November 2016. 
+ * This software is just meant for learning about USB Ethernet drivers.
+ * Beware if you run it it might blow up your system
+ *
  * based off drivers/net/usb/rtl8150.c
  */
 
@@ -153,12 +157,23 @@ static const struct net_device_ops rtl8150_netdev_ops = {
 };
 
 
+/* net operations 
+ *   probe allocates skbs and URBs
+ *   open fills and submits bulk IN URB and interrupt URB (resubmitted in callbacks) 
+ *   xmit fills and submits bulk OUT URB (no need to resubmit in callback) */
 static int rtl8150_probe(struct usb_interface *intf, const struct usb_device_id *id);
 static int rtl8150_open(struct net_device *netdev);
 static netdev_tx_t rtl8150_start_xmit(struct sk_buff *skb, struct net_device *netdev);
+
+/* URB completion callback handlers 
+ *   read: check urb status, hand to net: netif_rx(dev->rx_skb), resubmit urb 
+ *   write: check status 
+ *   int: check status, resubmit, urb */
 static void read_bulk_callback(struct urb *urb);
 static void write_bulk_callback(struct urb *urb);
 static void intr_callback(struct urb *urb);
+
+/* helper functions */
 static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data);
 static int set_registers(rtl8150_t * dev, u16 indx, u16 size, void *data);
 
@@ -263,8 +278,8 @@ static int get_registers(rtl8150_t * dev, u16 indx, u16 size, void *data)
     unsigned int pipe = usb_rcvctrlpipe(dev->udev, 0);
     /* build control URB, send it off, and wait for completion
        usb_control_msg()
-        struct usb_ctrlrequest *dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO);
-            dr->bRequestType = requesttype;  
+                struct usb_ctrlrequest *dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO);
+                dr->bRequestType = requesttype;  
                 dr->bRequest = request;
                 dr->wValue = cpu_to_le16(value);
                 dr->wIndex = cpu_to_le16(index);
@@ -363,7 +378,7 @@ static int rtl8150_open(struct net_device *netdev)
  * typedef enum netdev_tx netdev_tx_t;
  */
 static netdev_tx_t rtl8150_start_xmit(struct sk_buff *skb,
-                        struct net_device *netdev)
+                                      struct net_device *netdev)
 {
     rtl8150_t *dev = netdev_priv(netdev);
     int count, res;

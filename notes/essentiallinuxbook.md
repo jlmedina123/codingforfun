@@ -6,8 +6,8 @@
 * timer: same as tasklet
 * tasklets: run with tasklet disabled on ALL CPUs => doesnt need reentrant
 
-* spin_lock_irqsave: disables ALL interrupts on LOCAL CPU (so ISR is not preempted by higher priority ISR)
-* spin_lock_bh: disables software interrupts on local CPU, but not hardware interrupts
+* `spin_lock_irqsave`: disables ALL interrupts on LOCAL CPU (so ISR is not preempted by higher priority ISR)
+* `spin_lock_bh`: disables software interrupts on local CPU, but not hardware interrupts
 
 
 * SMP Linux settings
@@ -226,15 +226,15 @@ Default: N_TTY
 	* Read: S slave-addr Wr [A] 0 [A] S slave-addr Rd-cmd [A] [data] NA P
 
 * I2C EEPROM with one char interface per bank
-	* struct file_operations: read, write, ioctl, open
-	* struct eep_bank: struct i2c_client, struct cdev, addr
-	* struct eep_bank banklist[NUMBBANKS];
-	* struct i2c_driver: unique id, attach(),
-	* struct i2c_client_address_data slaveaddrs 
+	* `struct file_operations`: read, write, ioctl, open
+	* `struct eep_bank`: struct i2c_client, struct cdev, addr
+	* `struct eep_bank banklist[NUMBBANKS]`;
+	* `struct i2c_driver`: unique id, attach(),
+	* `struct i2c_client_address_data slaveaddrs` 
 	* add entry to /etc/udev/rules.d/
 	
 	1. `module_init()`: creates /dev/eep/0 .. NUMBBANKS
-		* kmalloc(eep_bank * NUMBBANKS)
+		* `kmalloc(eep_bank * NUMBBANKS)`
 		* `alloc_chardev_region(&devnumber, 0, NUMBBANKS`
 		* `class_create()`: create sysfs entry
 		* for eebank in eebanks { 
@@ -333,7 +333,7 @@ static int __init module_init() {
 static int myprobe(struct platform_device *pdev) {
 
 	// 1) request (reserves) memory region (so other drivers dont use it)
-	struct resource *res = pdev->resource
+	struct resource *res = pdev->resource // equivalent to pci_resource_start(bar)
 	request_mem_region(res->start, res->end, pdev->name);
 	
 	// 2) map bus address to CPU address (API pci_iomap, iomap, iomap_nocache)
@@ -346,7 +346,7 @@ static int myprobe(struct platform_device *pdev) {
 	...
 	
 	// 4) probe flash with a MTD chip driver
-	do_map_probe((char *)"cfi_probe", (struct *map_info)mymydriver); // cfi_probe, jedec_probe, map_rom, map_ram, ...
+	do_map_probe((char *)"cfi_probe", (struct *map_info)mymapdriver); // cfi_probe, jedec_probe, map_rom, map_ram, ...
 	
 	// 5) register MTD partition
 	struct mtd_info * mymtd;

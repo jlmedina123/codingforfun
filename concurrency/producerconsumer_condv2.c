@@ -69,8 +69,6 @@ int main(int argc, char *argv[]) {
                        NULL,         // const pthread_attr_t *attr
                        (work)producer,     // void *(*start_routine) (void *)
                        &thread_num[i]);          // void *arg
-        /* watch for mistake of passing &i in last argument.
-           you'd be passing ptr to integer that will change */
         i++;
 
         thread_num[i] = i;

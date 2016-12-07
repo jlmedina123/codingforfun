@@ -120,6 +120,7 @@ int main(int argc, int **argv) {
     int i;
     int keys[] = {5, 4, 8, 6, 1, 43, 6};
     node_t *tree = init_tree(3);
+    
     /* inserting keys */
     for (i = 0; i < 7; i++) {
         printf("Inserting key %d\n", keys[i]);
@@ -129,11 +130,15 @@ int main(int argc, int **argv) {
     printf("Finding key %d: %d\n", 43, find_key(tree, 43));
     printf("Finding key %d: %d\n", 15, find_key(tree, 15));
  
-    /* traversing tree */
+    /* traversing tree (recursively) */
     traverse_inorder(tree); printf("\n"); 
     traverse_preorder(tree); printf("\n");
     traverse_postorder(tree); printf("\n");
  
+    /* traverse tree without recursion */
+    // TBD
+    
+    
     /* depth */
     printf("Depth of shortest branch: %d\n", mindepth(tree));
     printf("Depth of longest branch: %d\n", maxdepth(tree));
@@ -146,7 +151,12 @@ int main(int argc, int **argv) {
     // just put A's keys in array inorder, and same for B
     // if A is subtree, inorder keys must be subarray of B
  
-  
  
-   return 0;
+    /* find the lowest common ancestor of two given nodes */
+    // iterate through tree (page 74 programming interview exposed)
+   
+    /* transform (unordered) binary tree to heap */
+
+
+    return 0;
 }

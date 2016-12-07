@@ -110,8 +110,15 @@ void remove_node(node_t *node) {
     memcpy(node, node->next, sizeof(node_t));
     free(next);
 }
- 
+
+/*
+ * return node k nodes from the last node 
+ */
 node_t * nodefromend(node_t *list, int k) {
+    // move pointer to node k-th. Then
+    // start another pointer from head, 
+    // and move prev and new pointer together
+    // until end
     node_t *first = list;
     node_t *second = list;
     int i = 0;
@@ -145,7 +152,7 @@ int detectloop(node_t *list) {
  
     node_t *slow = list;
     node_t *fast = list;
-    while (fast->next->next != NULL) {
+    while (fast && fast->next && fast->next->next) {
         fast = fast->next->next;
         slow = slow->next;
         if (fast == slow)
@@ -214,7 +221,7 @@ int main() {
     remove_node(node);
     print_list(list);
  
-    /* detect if there is loop */
+    /* detect if there is loop (if list is cyclical) */
     if (detectloop(list))
         printf("Loop detected\n");
     else
@@ -226,6 +233,7 @@ int main() {
     else
         printf("List is not palindrome\n");
 
+    /* read list backwards without using additional storage */
     printf("List read backwards:\n");
     readbackwards(list);
     printf("\n");

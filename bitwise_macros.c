@@ -43,7 +43,7 @@ https://gcc.gnu.org/onlinedocs/gcc-5.1.0/cpp/Macros.html
 	eprintf3("hello");   // correct, expands to fprintf(stderr, "hello", );
 
 #define eprintf4(format, ...) fprintf(stderr, format, ##__VAR_ARGS__) // removes comma if no var_args
-	eprintf4("hello);    // correct, expands to fprintf(stderr, "hello");
+	eprintf4("hello");    // correct, expands to fprintf(stderr, "hello");
 
 
  - predefined macros

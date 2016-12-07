@@ -559,11 +559,7 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 
 	result = -EBUSY;
 	cmdid = alloc_cmdid(nvmeq, iod, bio_completion, NVME_IO_TIMEOUT);
-	if (unlikely(cmdid < 0))
-		goto free_iod;
 
-	if ((bio->bi_rw & REQ_FLUSH) && !psegs)
-		return nvme_submit_flush(nvmeq, ns, cmdid);
 
 	control = 0;
 	if (bio->bi_rw & REQ_FUA)
@@ -586,10 +582,9 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 		dma_dir = DMA_FROM_DEVICE;
 	}
 
-	result = nvme_map_bio(nvmeq->q_dmadev, iod, bio, dma_dir, psegs);
-	if (result < 0)
-		goto free_iod;
-	length = result;
+	nvme_map_bio(nvmeq->q_dmadev, iod, bio, dma_dir, psegs);
+	
+    length = result;
 
 	cmnd->rw.command_id = cmdid;
 	cmnd->rw.nsid = cpu_to_le32(ns->ns_id);
@@ -608,10 +603,6 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 
 	return 0;
 
- free_iod:
-	nvme_free_iod(nvmeq->dev, iod);
- nomem:
-	return result;
 }
 
 static void nvme_make_request(struct request_queue *q, struct bio *bio)
@@ -1327,9 +1318,11 @@ static struct nvme_ns *nvme_alloc_ns(struct nvme_dev *dev, int nsid,
 	ns->queue->queue_flags = QUEUE_FLAG_DEFAULT;
 	queue_flag_set_unlocked(QUEUE_FLAG_NOMERGES, ns->queue);
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, ns->queue);
-/*	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, ns->queue); */
-	blk_queue_make_request(ns->queue, nvme_make_request);
-	ns->dev = dev;
+	
+    /* define its own make_request for request queue */
+    blk_queue_make_request(ns->queue, nvme_make_request);
+	
+    ns->dev = dev;
 	ns->queue->queuedata = ns;
 
 	disk = alloc_disk(NVME_MINORS);
@@ -1578,23 +1571,15 @@ static int __devinit nvme_probe(struct pci_dev *pdev,
 	struct nvme_dev *dev;
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-	if (!dev)
-		return -ENOMEM;
 	dev->entry = kcalloc(num_possible_cpus(), sizeof(*dev->entry),
 								GFP_KERNEL);
-	if (!dev->entry)
-		goto free;
 	dev->queues = kcalloc(num_possible_cpus() + 1, sizeof(void *),
 								GFP_KERNEL);
-	if (!dev->queues)
-		goto free;
 
-	if (pci_enable_device_mem(pdev))
-		goto free;
+	pci_enable_device_mem(pdev);
 	pci_set_master(pdev);
 	bars = pci_select_bars(pdev, IORESOURCE_MEM);
-	if (pci_request_selected_regions(pdev, bars, "nvme"))
-		goto disable;
+	pci_request_selected_regions(pdev, bars, "nvme");
 
 	INIT_LIST_HEAD(&dev->namespaces);
 	dev->pci_dev = pdev;
@@ -1605,18 +1590,10 @@ static int __devinit nvme_probe(struct pci_dev *pdev,
 	dev->entry[0].vector = pdev->irq;
 
 	result = nvme_setup_prp_pools(dev);
-	if (result)
-		goto disable_msix;
 
 	dev->bar = ioremap(pci_resource_start(pdev, 0), 8192);
-	if (!dev->bar) {
-		result = -ENOMEM;
-		goto disable_msix;
-	}
 
 	result = nvme_configure_admin_queue(dev);
-	if (result)
-		goto unmap;
 	dev->queue_count++;
 
 	spin_lock(&dev_list_lock);
@@ -1707,23 +1684,11 @@ static int __init nvme_init(void)
 	int result = -EBUSY;
 
 	nvme_thread = kthread_run(nvme_kthread, NULL, "nvme");
-	if (IS_ERR(nvme_thread))
-		return PTR_ERR(nvme_thread);
 
 	nvme_major = register_blkdev(nvme_major, "nvme");
-	if (nvme_major <= 0)
-		goto kill_kthread;
 
 	result = pci_register_driver(&nvme_driver);
-	if (result)
-		goto unregister_blkdev;
 	return 0;
-
- unregister_blkdev:
-	unregister_blkdev(nvme_major, "nvme");
- kill_kthread:
-	kthread_stop(nvme_thread);
-	return result;
 }
 
 static void __exit nvme_exit(void)

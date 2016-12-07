@@ -30,7 +30,7 @@
 	* 	 ./ct-ng build -> creates xx-gcc, sysroot with libraries
 * C library components:
 	* libc, libm, libpthread, librt
-	* libc always linked, other add -l <m/thread/rt> 
+	* libc always linked, other add -l <m/pthread/rt> 
 * static linking: `xx-gcc -static mylib.c -o mylib-static`
 * creating static library: create archive of object files
 
@@ -51,7 +51,7 @@ After power-up, memory not accessible -> bootloader initializes system and loads
 
 * Phases:
   1. ROM code loads small code from SRAM. But SRAM not large enough for full booloader, so it needs Secondary Program Loader
-  2. SPL initializes memory, loads Third Program Loaderon DRAM, and jumps to it
+  2. SPL initializes memory, loads Third Program Loader on DRAM, and jumps to it
   3. TPL: bootloader is loaded
 
 * Bootloader to kernel: pass system information -> device tree
@@ -81,7 +81,7 @@ Creates files:
 
 * vmlinuz-3.9.3 – The actual kernel
 * System.map-3.9.3 – The symbols exported by the kernel
-* initrd.img-3.9.3 – initrd image is temporary root * file system used during boot process
+* initrd.img-3.9.3 – initrd image is temporary root filesystem used during boot process
 * config-3.9.3 – The kernel configuration file
 
 BusyBox: performs all essential functions needed by init
@@ -95,7 +95,7 @@ BusyBox: performs all essential functions needed by init
 	*  It can be programmed one word at a time
 	*  Can be read word by word
 * NAND flash
-	* 	cheaper, high capacity, more complex
+	*  cheaper, high capacity, more complex
 	*  one bit per cell SCL, two bits MLS, three TLC
 	*  Number of erase cycles before degradation is low
 	*  Can be read or written only in pages -> cant be mapped to address space
@@ -233,7 +233,7 @@ Device tree example:
 net@xxxx {
 	compatible = "name";
 	reg = <0x100000100 0x10000>;
-	inerrupts = <25>;
+	interrupts = <25>;
 };
 ```
 

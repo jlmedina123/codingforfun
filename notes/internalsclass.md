@@ -21,10 +21,10 @@
         2. (struct group_info *)group_info
         3. (struct user_struct *)user: processes, files, etc
     * signal management:
-        1. `struct signal_struct *signal` -> for management of signals
-rlim[]: resource limits for CPU, file size, data memory, stack, etc
-number of context switches, page faults, etc
-        2. `struct sighand_struct *sighand` -> array of signal handlers registered by   task
+        1. `struct signal_struct *signal` -> for management of signals, stats
+				* rlim[]: resource limits for CPU, file size, data memory, stack, etc
+				* number of context switches, page faults, etc
+        2. `struct sighand_struct *sighand` -> array of signal handlers registered by task
         3. `struct sigpending pending` -> signals pending (received)
     * files:
         1. `struct files_struct *files` -> structure with file descriptor table, which has entries with pointers to files opened
@@ -64,15 +64,41 @@ number of context switches, page faults, etc
 * pthread_create
 	* thread pointers files, fs, sighand, mm point to struct of parent
 
+```
+SYSCALL_DEFINE0(fork)
+    return do_fork(SIGCHLD, 0, 0, NULL, NULL);
 
+
+
+do_fork(unsigned long clone_flags,... {
+
+    struct task_struct * p = copy_process(clone_flags,...
+    wake_up_new_task(p);
+}
+
+struct task_struct *copy_process(clone_flags, ...) {
+	 struct task_struct *p = dup_task_struct(current);
+	 retval = copy_creds(clone_flags, p);
+    retval = copy_files(clone_flags, p);
+    retval = copy_sighand(clone_flags, p);
+    retval = copy_signal(clone_flags, p);
+    retval = copy_mm(clone_flags, p);
+    	mm = dup_mm(tsk);
+     
+     
+// pthread_create uses clone with flag CLONE_THREAD
+SYSCALL_DEFINE5(clone, unsigned long, clone_flags, 
+{
+    return do_fork(clone_flags, newsp, 0, parent_tidptr, child_tidptr);
+}
+```
 # System calls
 
 Syscall is userspace request of a kernel service
 
-
 * mode switch
 	* old: interrupt or trap 0x80 -> calls system_call()
-	* new: instruction SYSENTER -> calls sysentre_entry()
+	* new: instruction SYSENTER -> calls sysenter_entry()
 * every syscall has an assigned number
 * `sys_call_ptr_t sys_call_table[__NR_syscall_max+1]`: pointers to syscall routines.  Eg: sys_read, sys_write, etc
 * flow:
@@ -152,7 +178,6 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 ```
 
 
-
 reference to read: https://lwn.net/Articles/604287/
 
 # Memory management
@@ -173,18 +198,51 @@ reference to read: https://lwn.net/Articles/604287/
 	* User virtual addr: used by process
 	* Bus address: used between peripheral device and main memory. Same as physical in x86 without IOMMU. Platforms with IOMMU can remap addresses
 	* Kernel logical address: kernel memory from normal zone. Mapped linearly as physical + PAGE_OFFSET. kmalloc returns this address
-	* kernel virtual address: memory from high zone mapped to kernel. Uses page table for non-linear translation. vmalloc retusn this address
+	* kernel virtual address: memory from high zone mapped to kernel. Uses page table for non-linear translation. vmalloc returns this address
+
+* Mapping memory into kernel virtual address space:
+	* __ioremap__: maps physical address (of memory mapped device registers) to kernel virtual address that MMU understands
+	* __kmap__: maps pages from high memory to kernel virtual address space. Pages in low memory zone permanently mapped to kernel logical address space. Pages in high memory are innaccessible in kernel logical address space, but can be mapped into kernel kernel virtual address space. It creates permanent PTE mapping for kernel to access a page in high memory
+	* __mmap__: maps kernel page to a process's virtual address space
+
+
+```
+void __iomem *ioremap (unsigned long phys_addr, unsigned long size)
+	area = get_vm_area(size, VM_IOREMAP);
+	offset = phys_addr & ~PAGE_MASK; // align to page, and get offset within page
+	phys_addr &= PAGE_MASK;
+	ioremap_page_range((unsigned long) addr, (unsigned long) addr + size, phys_addr, prot
+	return (void __iomem *) (offset + (char __iomem *)addr);
+	
+ioremap_page_range
+	ioremap_pgd_range
+		ioremap_pmd_range
+			ioremap_pte_range
+				set_pte_at
+
+void *kmap(struct page *page) {
+	if (!PageHighMem(page))
+        return page_address(page);
+    return kmap_high(page);
+
+void *kmap_high(struct page *page)
+    vaddr = (unsigned long)page_address(page);
+    if (!vaddr)
+        vaddr = map_new_virtual(page);
+```
+
 
 * Memory architecture
 	* UMA: all CPUs have consistent view of memory -> all memory a single chunk
 	* NUMA: memory and CPU more tightly linked -> chunks of memory -> nodes
 
+
+
+
 https://www.kernel.org/doc/gorman/html/understand/understand009.html
 https://linux-mm.org/PageAllocation
 	 
 ### Kernel memory allocation:
-
-
 
 * Binary Buddy Allocator
 	* combines power-of-two allocator, and free buffer coalescing
@@ -202,13 +260,13 @@ https://linux-mm.org/PageAllocation
 		
 * kernel stack is very small (2 or 4 pages). Static allocation is discouraged. Use dynamic allocation for arrays
 * kmalloc:
-	* allocates pinned contiguous physical memory, mapped to contiguous kernel virtual addresses, from kernel’s heap
+	* allocates pinned contiguous physical memory, mapped to contiguous kernel virtual addresses, from normal zone
 	* virtual addr returned is physical addr + PAGE_OFFSET ( 1:1 logical mapping)
 	* 128KB limit per allocation
 	* not page aligned
 	* uses slab allocator to avoid fragmentation: hash bucket linked lists of free memory in power of 2s (32B to 128 KB) -> min 32 B and max 128 KB. use __get_free_pages for more. Can waste up to 50% memory
 	* GFP_KERNEL:  `(__GFP_WAIT | __GFP_IO | __GFP_FS)` -> can sleep, cat start disk IO, can start filesystem io
-	* GFP_ATOMIC: `(__GFP_HIGH)` -> can access emergency pools
+	* GFP_ATOMIC: `(__GFP_HIGH)` ???? -> can access emergency pools
 	
 ```
 kmalloc ->__do_kmalloc
@@ -256,7 +314,7 @@ return __vmalloc_node_range(size,
 	* static: `define_per_cpu()`, `get_cpu_var()`, `put_cpu_var()`
 	
 * others (dont allocate):
-	* `ioremap(), ioremap_nocache(), pci_iomap()`: for mmio. maps bus memory into CPU space. It makes bus memory accessible to CPU via readb/l/w and writeb/l/w. Maps (it creates PTE entries) device memory to kernel virtual addr space. Address returned cannot be used directly deferenced by CPU. Use wrappers write/readb/w/l()
+	* `ioremap(), ioremap_nocache(), pci_iomap()`: for mmio. maps physical address (bus memory) into kernel virtual address space (CPU space). It makes bus memory accessible to CPU via readb/l/w and writeb/l/w. Maps (it creates PTE entries) device memory to kernel virtual addr space. Address returned cannot be used directly deferenced by CPU. Use wrappers write/readb/w/l()
 	* `request_mem_region`: for mmio. to reserver range of physical addresses that device maps and uses
 	* `remap_pfn_range`: for mmap. reserves virtual address range and maps it to range of physical pages that were previously allocated. Usually used for mmap implementation. Allows direct access to device memory or kernel memory from user space. Creates kernel page table entry that points main memory or device memory to virtual address space memory
 
@@ -354,14 +412,14 @@ vmalloc()
 		 
 * Anonymous mapping:
 	* memory mapping with no file or device backing it (heap, stack, etc)
-	* initially only allocates virtual memory (no physical) -> it only adds page table 	* entries, and maps virtual address to (physical) zero page
+	* initially only allocates virtual memory (no physical) -> it only adds page table entries, and maps virtual address to (physical) zero page
 	* physical memory allocated on-demand, from page faults
 	* access unmapped memory (without page table entry) generates SIGSEGV
 	* Linux leaves first KB of process virtual address space unmapped, so deferencing null pointer tries to access unmapped memory, and generates SIGSEGV.
 
 * File backed mapping:
 	* mirrors the content of an existing file
-	* MAP_SHARED: a write updates page cache  immediately (other processes see it)
+	* MAP_SHARED: a write updates page cache immediately (other processes see it)
 	* MAP_PRIVATE: a write performs COW and allocates new local copy of page
 
 * Page fault: virtual addr doesn’t have entry in page table, or physical page is not allocated, or its’s allocated but paged out, or can’t write to it. 
@@ -389,7 +447,7 @@ vmalloc()
 
 * Regular files
 	* no structure, no end-of-file character
-	* stored in 4KB data blocks -> wastes space for small files, more efficient I/O on 	* larger files
+	* stored in 4KB data blocks -> wastes space for small files, more efficient I/O on larger files
 	* data blocks can be contiguous or fragmented -> can degrade performance
 	
 * each file (of any type) -> one inode
