@@ -115,7 +115,18 @@ int isbalanced(node_t *root) {
         return 1;
 }
  
- 
+/*
+ * sum all the values of the nodes leaf 
+ */
+int sumleafnodes(node_t *root) {
+    if (!root)
+        return 0;
+    if (!root->left && !root->right)
+        return root->value;
+    return sumleafnodes(root->left) + sumleafnodes(root->right);
+}
+
+
 int main(int argc, int **argv) {
     int i;
     int keys[] = {5, 4, 8, 6, 1, 43, 6};
@@ -146,7 +157,10 @@ int main(int argc, int **argv) {
         printf("Tree unbalanced\n");
     else
         printf("Tree balanced\n");
-  
+
+    /* sum values of all leaf nodes */
+    printf("Leaf nodes value: %d\n", sumleafnodes(tree));
+
     /* check if tree A is subtree of tree B */
     // just put A's keys in array inorder, and same for B
     // if A is subtree, inorder keys must be subarray of B
