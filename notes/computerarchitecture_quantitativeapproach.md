@@ -115,10 +115,12 @@ Flash memory
 * earsed in blocks
 * limited number of cycles
 
+
 ## ARM cortex A8
+
 * 2 instructions per clock, clock rate up to 1GHz
 * two-level cache hierarchy
-   * L1: pair of cache (I and D), 16KB or 32KB each, four-way set associative, way prediction and random replacement, virtually indexed and physically tagged
+   * L1: pair of cache (I and D), 16KB or 32KB each, four-way set associative (4 blocks/lines in a set), way prediction and random replacement, virtually indexed and physically tagged
    * L2: optional, 8-way set associative, 128KB to 1MB, 1 to 4 banks (several transfers from memory concurrently), external bus 64 to 128 bits, physically indexed and tagged
 * Memory management 
     * two TLBs (I and D), fully associated, 32 entries each with variable page size
