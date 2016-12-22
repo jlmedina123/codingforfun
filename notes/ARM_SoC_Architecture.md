@@ -1,4 +1,19 @@
 
+# Pipelining
+
+hazards:
+
+* structural: two instruction need to use stage hardware at same time -> replicate hardware
+* data: instruction needs data from previous instruction
+	* bypass/forwarding: use bypass multiplexers between stages where information is forwarded 
+	* pipeline interlock: introduce pipeline bubble (noop operation). Initially done by compiler, but cache hit suffered, so later implemented in hardware
+* control: caused by branching. Branch resolved in decode stage (2 cycles). If branch taken, next instruction in I-cache needs to be ignored
+	*  predict not taken, and flush if taken
+	*  predict taken
+	*  execute branch delay slot instruction
+	*  predict, and flush if wrong
+
+
 # Chapter 1
 
 ## MU0 Simple process
@@ -215,3 +230,5 @@ Memory management:
 * demand paging: page marked as absent and exception generated when accessed. OS can write another page to swap and use it
 
 * ARM supports only paging
+
+

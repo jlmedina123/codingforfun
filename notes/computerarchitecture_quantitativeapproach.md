@@ -35,7 +35,7 @@ Where to place lines in cache:
    * block mapped to set, and placed anywhere in set
    * n-way set associative: n blocks in a set
 * direct mapped cache: one block per set, block always placed in same set
-* fully associate: just one set, block placed anywhere
+* fully associative: just one set, block placed anywhere
 
 Caching writes: can produce inconsistency
 * write-through: cache updates itme in cache and writes update to main memory
