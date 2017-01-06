@@ -91,7 +91,7 @@ LDR r0, [r1], r2   ; r1 <- r1 + r2, r0 <- mem[r1]  : postindex
 
 # stack: ascending, descending, full (sp to last used), empty (sp to first unused)
 STMFD sp!, {r1, r4}  ; push full descending
-
+```
 
 # Chapter 4 thumb instruction set
 
@@ -100,4 +100,86 @@ Only r0-r7
 ...
 
 # Chapter 5 Efficient C
+
+32-bit registers:
+* Load always loads 32-bits: 
+    * casting loaded char to int does not cost extra instruction (same for int to char)
+    * load for 8 or 16 bits extended before written to register
+        * unsigned values are zero extended
+        * signed values are signed extended
+* ARMv5 added instructions for load 64 bits
+* char is unsigned ->  char i >= 0 is infinite loop, armcc gives warning (unsigned comparison with 0)
+
+## C types
+* avoid char/short local variables -> take 32-bit in stack, plus extra instruction for checking range
+* use smallest type for array and global variables
+* avoid casts in expressions, casts in load/store are free
+* avoid char/short for function arguments or returns (avoids extra casts)
+* use unsigned for divisions
+
+## C looping
+* use unsigned loop counter with condition i != 0
+* unroll loop (repeat loop body and reduce loop iterations)
+
+## Register allocation
+* Up to 12 variables -> allocated in registers
+* More variables -> allocated on stack -> spilled variables -> slow
+
+## Function calls
+* limit arguments to 4: first four arguments in registers (r0-r3), subsequent in stack
+* if more than 4 arguments -> use pointer to struct
+
+## Pointer aliasing
+* avoid subexpressions that access memory, use new local variable for that
+* avoid taking address of local variable
+
+## Others...
+* for structs, order elements in increasing size (char to long)
+* avoid bit-fields, use defines instead
+
 ```
+typedef struct {
+    unsigned int sA : 1;
+    unsigned int sB : 1;
+    unsigned int sC : 1;
+} stages_v1;
+stages_v1 *stage;
+stage->sA;
+...
+
+// instead
+typedef unsigned long stages_v1;
+#define sA (1uL << 0)
+#define sB (1uL << 1)
+#define sC (1uL << 2)
+staves_v1 *stage;
+stage & sA;
+...
+
+```
+
+* if data endianess makes difference, use char * to access it
+* avoid division (and modulus) in circular loops:
+
+```
+offset = (offset + increment) % buffer_size;
+// instead:
+offset += increment;
+if (offset >= buffer_size) offset -= buffer_size;
+```
+
+* avoid floating point (usually it's C library, not hardware), use fixed-point instead
+* use inline functions for small functions
+
+
+# Chapter 6: Assembly code for optimizations
+
+
+## instruction scheduling: avoid process stall due to pipeline hazard
+
+* 5-stage pipeline: fetch, decode, ALU, ls1, ls2
+
+
+* register allocation: minimize memory accesses
+* condition execution
+

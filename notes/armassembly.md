@@ -44,6 +44,9 @@ Barrel shift:
 
 Immediate values:
 * ARM instruction 32 bits, 4 bits condition, ... -> 12 bits for immediate value
-* bigger numbers 
+* bigger numbers -> two data instructions
+
+Data instructions
+* arithmetic, lofical, status, multiplies (no division) 
 
     
