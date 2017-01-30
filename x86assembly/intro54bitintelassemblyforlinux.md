@@ -111,3 +111,55 @@ Other branching instructions:
 
 loop    label   ; decrements rcx and branches until rcx=0
 rep             ; repeats insturction number defined in rcx
+
+String instructions
+* rax: hold value
+* rsi: source index
+* rdi: destination index
+
+Move bytes from location to another
+```
+lea     rsi, [source]   ; rsi: source index
+lea     rdi, [destination]  ; rdi: destination index
+mov     rcx, 10000      ; rcx: number of times to repeat
+rep     movsb
+```
+
+Store value in location
+```
+mov     eax, 1      ; eax: value to store
+mov     ecx, 1000   ; rcx: number of times to repeat
+rep     stosd       ; repeate stosb instruction ecx times
+```
+
+scan, cmp, ...
+
+
+## Chapter 9
+
+Stack: 
+* supposed to start at highest possible value: 0x7ffffffff
+* stack randomization: starts below highest value to avoid attacks
+* `push`: rsp=rsp-8, place value at rsp
+
+Call a function: call, ret
+
+Function call protocol for Linux: System V Application Binary Interface
+* 6 integer parameters passed in rdi, rsi, rdx, rex, r8 and r9
+* 8 floating-point parameters passed in xmm0-xmm7
+* rax for return integer, xmm0 for return floating
+* stack pointer on 16 byte boundary -> rsp in hex should finish in 0
+
+Stack frame with 32 bytes (aligned to 16) for local variable:
+```
+push rbp
+mov rbp, rsp
+sub rsp, 32
+```
+
+Return and undo stack frame (no need for leaf function):
+```
+leave
+ret
+```
+

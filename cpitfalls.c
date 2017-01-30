@@ -277,3 +277,76 @@ int * const d = (int *)4; // correct
 int * e = (int *)4;       // correct
 const int * f = (int *)4; // correct
 
+
+/*
+ * http://pfacka.binaryparadise.com/articles/guide-to-advanced-programming-in-C.html
+ */
+
+// typecasting unsigned to signs:
+
+    long i = -1;
+    printf("%lu, %lu, %lu, %lu, %lu, %llu, %lld\n",
+            sizeof(i),  // same as size(long)
+            (size_t)i,  // typecast -1 to unsigned long, which is 0xff ff ff ff ff ff ff ff ff = max 64 bit
+            sizeof(size_t),  // 8 bytes, unsigned long
+            sizeof(long),
+            sizeof(long long), // long long size = long size
+            ((long long unsigned)1<<64)-1,  // warning: shift count >= width of type
+                                            // doesnt work because 1<<64 overflows and is typecasted to 0
+                                            //  so (unsigned)0 - (signed)1 = signed(0-1) = signed int(-1)
+                                            //  which is typecasted to llu, which is max 64 bits  
+            ((long long unsigned)1<<64)-1); // warning: shift count >= width of type     
+
+// 8, 18446744073709551615, 8, 8, 8, 18446744073709551615, -1
+
+
+
+// to avoid double free, or using after freeing
+void nullfree(void **pptr) { 
+    void *ptr = *pptr;
+    assert(ptr != NULL);      // to catch double free
+    free(ptr);
+    *pptr = NULL;             // set pointer to null, so it doesnt point to memory freed
+}
+int main() {
+    int *ptr = malloc(10);
+    //nullfree(&ptr); // void * is generic, but void ** isnt. this gives warning 
+    nullfree((void **)&ptr);
+    return 0;
+}
+
+
+// reference count in C??
+// garbage collection in C
+
+
+// multidimensional array
+int p[2][4] = {{1, 2, 3, 4}, {7, 8, 9, 10}};
+int element = *(*(p+1)+2); // equivalent to p[1][2]
+// to pass it to function, you have to define dimension of inner array
+void sum(int data[2][4]) {...}
+void sum(int data[][4]) {...}
+void sum(int (*data)[4]) {...}
+                          
+
+// check for overflow before operation
+#include <limits.h>
+int a = <something>;
+int x = <something>;
+if ((x > 0) && (a > INT_MAX - x)) /* `a + x` would overflow */;
+if ((x < 0) && (a < INT_MIN - x)) /* `a + x` would underflow */;
+if ((x < 0) && (a > INT_MAX + x)) /* `a - x` would overflow */;
+if ((x > 0) && (a < INT_MIN + x)) /* `a - x` would underflow */;
+if (a > INT_MAX / x) /* `a * x` would overflow */;
+if ((a < INT_MIN / x)) /* `a * x` would underflow */;
+if ((a == -1) && (x == INT_MIN)) /* `a * x` can overflow */
+if ((x == -1) && (a == INT_MIN)) /* `a * x` (or `a / x`) can overflow */
+
+
+char array_place[100] = "don't panic"; // allocates an array. array_place is a LABEL to the
+                                       // memory of the array
+char* ptr_place = "don't panic";       // allocates a read-only array, and also a pointer variable
+                                       // assigns the address of the array to the pointer
+                                       
+void foo(char arr[], char *ptr)        // arrays passed to functions are converted to pointers.
+                                       // arr becomes a const pointer. Both arguments are the same    
