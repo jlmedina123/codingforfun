@@ -163,3 +163,13 @@ leave
 ret
 ```
 
+Local stack variables: use equ instead of just rsp
+```
+x   equ     0
+y   equ     8
+    mov     [rsp+x], r8
+    mov     [rsp+y], r9
+```
+
+
+
