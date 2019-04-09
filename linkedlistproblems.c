@@ -85,6 +85,23 @@ void remove_duplicates(node_t * list) {
         }
     }
 }
+
+void remove_duplicate_bitmap(struct node * list) {
+        struct node *curr = list;
+        uint64_t bitmap = 0;
+        while (curr) {
+                if (bitmap & (1<<curr->value)) {
+                        prev->next = curr->next;
+                        curr = curr->next;
+                        free(curr);
+                } else {
+                        bitmap |= (1<<curr->value);
+                        prev = curr;
+                        curr = curr->next;
+                }
+        }
+}
+
  
 void insert_beginning(node_t ** list, int value) {
     node_t *newnode = malloc(sizeof(node_t));

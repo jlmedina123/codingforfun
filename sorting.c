@@ -1,3 +1,19 @@
+/*
+https://jlmedina123.wordpress.com/2013/04/09/sorting-in-c/
+
+Sorting in C
+
+Below there are common sorting routines implemented in C.
+
+Bubble sort and Insert sort are simpler to implement, with average runtime O(n^2). Bubble sort is the simplest, and just passes through all the data n times, swapping elements that are not in order. Insert sort improves on bubble sort. It passes though the data n times, but it takes advantage of the fact that after pass i-th, all elements from index 0 to i are already sorted. So it just finds where to insert element i+1 within the first i elements, and shifts the greater elements to the right. In the best case (array previously sorted), runtime is O(n).
+
+Quicksort and Heapsort are faster, and have average runtime O(n*log n). Quicksort uses divide and conquer, by diving the list in two, and recursively sorting the two subsets (which means dividing each in two again). Heapsort converts the list into a heap, and keeps taking the heap’s root, which is the largest element.
+
+Distribution sorting is the fastest type of algorithm, and can achieve linear runtime O(n). Bucket sort divides the data into subsets, which can be sorted on different processors. Flash sort assumes data follows a known probability distribution. It then separates data into m subsets (m ~ 0.5 n) or classes with a min and max number, which partially orders the data. Then it applies insertion sort to each subset.
+
+*/
+
+
 /* bubble sort routine 
  * Worst case performance: O(n^2)
  * Best case performance: O(n)

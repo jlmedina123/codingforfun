@@ -87,6 +87,16 @@ struct command commands[] = {
        ...
 };
 
+#ifdef DEBUG
+#define printt(fmt, ...) \
+    do { \
+        struct timeb tp; \
+        ftime(&tp); \
+        printf("%ld.%d: " fmt, tp.time, tp.millitm, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define printt(...) while(0){}
+#endif
 
 /***
  * some macros for bitwise operations 

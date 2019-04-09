@@ -43,4 +43,26 @@ https://www.kernel.org/doc/Documentation/DMA-API-HOWTO.txt
 		* dma_map_sg
 		* To reuse buffer, it needs to sync so CPU and device see update copy: dma_sync_single_for_cpu, dma_sync_sg_for_cpu, dma_sync_single_for_device, dma_sync_sg_for_device	 		
 
-    
+
+
+Coherent vs streaming
+
+
+
+http://linuxkernelhacker.blogspot.com/2014/07/arm-dma-mapping-explained.html
+
+Consistent (or coherent) memory is guaranteed to look the same to the processor and to DMA-capable devices, without problems caused by caching; it is most often used for long-lasting, bidirectional I/O buffers.
+Streaming memory may have cache effects, and is generally used for a single transfer
+
+https://forums.xilinx.com/t5/Embedded-Linux/dma-alloc-coherent-versus-streaming-DMA-neither-works/td-p/592277
+
+	- coherent: dma_alloc_coherent maps uncached memory. Useful if memory owner changes often
+	- streaming: kmalloc buffer, and dma_map_single for one transfer, unmap after.
+
+
+dma_alloc_coherent to allocate the blocks
+dma_mmap_coherent appears to be uncached, because accessing this area from userspace is horribly slow
+
+After reading some documentation, I decided that I should use a streaming DMA interface because my driver knows exactly when logic or CPU "owns" the data blocks. So instead of the "coherent" functions, I just kmalloc these buffers and then use dma_map_single_* to initialize them. Before and after DMA transfers, I call the appropriate dma_sync_single_for_* method.
+
+By mapping the kmalloced memory into user space, I once again have speedy access to this memory, and caching is enabled. Data transfers also work well and extensive testing shows that this works well. However, the in-kernel performance is now completely crippled. The system spends so much time in the dma_sync_single... calls, the the CPU now becomes a limiting factor.     

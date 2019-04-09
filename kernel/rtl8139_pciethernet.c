@@ -115,6 +115,9 @@ static struct pci_driver my_pci_driver = {
     .id_table   = pci_id_table,
     .probe      = my_pci_probe,
     .remove     = my_pci_remove,
+#ifdef PM
+    .driver.pm  = rtl8169_pm_ops,
+#endif 
 };
  
 static struct net_device_ops netops = {
@@ -156,6 +159,7 @@ MODULE_DEVICE_TABLE(pci, pci_id_table); // expose table id to pci hotplug module
 /*
  * module load/unload
  */
+#ifdef OLD
 static int my_init(void) {
     printk(KERN_ALERT DRV_NAME ": initializing module\n");
     if (pci_register_driver(&my_pci_driver) < 0) {
@@ -170,7 +174,9 @@ static void my_exit(void) {
     pci_unregister_driver(&my_pci_driver);
     printk(KERN_ALERT DRV_NAME ": pci driver unregistered\n");
 }
- 
+#else
+module_pci_driver(my_pci_driver);
+#endif
  
 /*
  * PCI entry points 
@@ -205,9 +211,10 @@ static int my_pci_probe(struct pci_dev *my_pci_dev,
  
     // 2) Enable bus mastering by pci device 
     pci_set_master(my_pci_dev);
- 
+    /*  pci_write_config_word(dev, PCI_COMMAND=0x4, old_cmd | PCI_COMMAND_MASTER); */
+         
     // 3) Access one of the six PCI I/O regions, indicated by BAR number 
-    mmio_start = pci_resource_start(my_pci_dev, 1);
+    mmio_start = pci_resource_start(my_pci_dev, 1);	// ((dev)->resource[(bar)].start)
     mmio_len =   pci_resource_len(my_pci_dev, 1);
     mmio_end =   pci_resource_end(my_pci_dev, 1);
     mmio_flags = pci_resource_flags(my_pci_dev, 1);
@@ -226,10 +233,15 @@ static int my_pci_probe(struct pci_dev *my_pci_dev,
     // It checks if region MMIO or PMIO, and calls pci_ioport_map() or ioremap() 
     // Address can be used with iowrite and ioread funcs. They hide details of MM/PMIO
     // ioremap: assigns kernel virtual addr to device io memory region
-    ioaddr = pci_iomap(my_pci_dev, 1, mmio_len);
+    ioaddr = pci_iomap(my_pci_dev, 1, mmio_len);  // ioremap(start, len);
  
     // 7) Set consistent (coherent) 32bit DMA
     rval = pci_set_consistent_dma_mask(my_pci_dev, DMA_BIT_MASK(32));
+    /* if (!dma_supported(dev, mask))
+                return -EIO;
+        dma_check_mask(dev, mask);
+        dev->coherent_dma_mask = mask;
+    */
     if (rval) {
         printk(KERN_ALERT DRV_NAME ": couldnt set 32 bit DMA\n");
         goto unmap;
@@ -273,8 +285,7 @@ static int my_pci_probe(struct pci_dev *my_pci_dev,
     spin_lock_init(&private->lock);
     private->pdev = my_pci_dev;
     private->ioaddr = ioaddr;
-     
- 
+      
      
     // 5) Create sysfs class
     SET_NETDEV_DEV(my_net_dev, &my_pci_dev->dev);
@@ -340,6 +351,11 @@ static int netdev_open(struct net_device *net_dev) {
     priv = netdev_priv(net_dev);
      
     // 1) Request IRQ
+    /* 
+    pci_enable_msi(pdev) -> __pci_enable_msi_range(dev, 1, 1, NULL);
+    nr_alloc = pci_alloc_irq_vectors(pdev, min, max, typeflag); -> __pci_enable_msi_range(dev, min, max, affd);
+    	-> nvec = pci_msi_vec_count(); msi_capability_init(nvec, aff);
+    */
     rval = request_irq(net_dev->irq, interrupt_method, IRQF_SHARED, 
                        net_dev->name, net_dev);
     if (rval != 0) {
@@ -623,6 +639,9 @@ static irqreturn_t interrupt_method(int irq, void *dev_instance)
             //      tail: points to end of packet payload
             //      end:  points to end of packet
             //      len:  amount of data
+            // struct sk_buff {         sk_buff_data_t          tail;
+            //                          sk_buff_data_t          end;
+            //                          unsigned char           *head, *data;
             // sk_buff API:
             //      dev_alloc_skb(len+NET_IP_ALIGN): data, head, tail point to start
             //      skb_reserve(skb, NET_IP_ALIGN): makes space for header. Moves data, tail by NET_IP_ALIGN
