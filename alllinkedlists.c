@@ -96,7 +96,7 @@ void reverse_single(node_ts **list) {
         next = next->next;
     }
     /* current points to last element */
-    current->next = prev;
+    current->next = prev;	// DONT FORGET THIS ONE!
     *list = current;
 }
  

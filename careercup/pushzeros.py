@@ -15,6 +15,6 @@ def pushzeros(seq):
 		seq[i] = 0
 	print seq
 
-seq = [0,0,1,2,0,4,0,0,8]
+seq = [5,0,1,2,0,4,0,0,8]
 print seq
 pushzeros(seq)

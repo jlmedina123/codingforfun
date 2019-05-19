@@ -20,7 +20,7 @@
                          expressions; \
                      }\
                      )
-  macro to return value: macro needs to be one expression
+  macro to return value: #define macro(var) ({ int __d = var*2; __d; }) 
 
 */
 
@@ -38,12 +38,8 @@ https://gcc.gnu.org/onlinedocs/gcc-5.1.0/cpp/Macros.html
 
 #define eprintf1(...) 		 fprintf(stderr, __VA_ARGS__)
 #define eprintf2(myargs...)	 fprintf(stderr, myargs)
-#define eprintf3(format, ...) fprintf(stderr, format, __VAR_ARGS__) // needs at least one input variable
-	eprintf3("hello", ); // wrong
-	eprintf3("hello");   // correct, expands to fprintf(stderr, "hello", );
 
 #define eprintf4(format, ...) fprintf(stderr, format, ##__VAR_ARGS__) // removes comma if no var_args
-	eprintf4("hello");    // correct, expands to fprintf(stderr, "hello");
 
 
  - predefined macros

@@ -106,13 +106,10 @@ int mindepth(node_t *node) {
     return 1 + nleft;
 }
  
-int isbalanced(node_t *root) {
+int isbalanced(const node_t *root) {
     int min = mindepth(root);
     int max = maxdepth(root);
-    if (max - min > 1)
-        return 0;
-    else
-        return 1;
+    return (min == max)
 }
  
 /*
@@ -130,12 +127,14 @@ int sumleafnodes(node_t *root) {
 int main(int argc, int **argv) {
     int i;
     int keys[] = {5, 4, 8, 6, 1, 43, 6};
-    node_t *tree = init_tree(3);
-    
+    //node_t *tree = init_tree(3);
+    node_t *tree = NULL;
+
     /* inserting keys */
     for (i = 0; i < 7; i++) {
         printf("Inserting key %d\n", keys[i]);
-        insert(tree, keys[i]);
+        //insert(tree, keys[i]);
+	insert2(&tree, keys[i]);
     }
     /* finding keys */
     printf("Finding key %d: %d\n", 43, find_key(tree, 43));
