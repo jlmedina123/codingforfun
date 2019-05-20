@@ -22,6 +22,23 @@ void addbeginning(struct node **list, char value) {
 	*list = new;
 }
 
+
+void rearrage_withstack(struct node * list) {
+        struct node *left = list;
+        struct node *right = list;
+        while (right) {
+                right = right->next;
+                push(right, stack);
+        }
+        while (!empty(stack)) {
+                right = pop(stack);
+                right->next = left->next;
+                left->next = right;
+                left = right;
+                right = pop(stack); // alternate. wont use this one
+        }
+}
+
 void rearrange(struct node **list, int order[], int len) {
 	struct node *array[] = malloc(sizeof(struct node *) * len);
 	struct node *curr = *list;

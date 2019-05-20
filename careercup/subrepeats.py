@@ -42,5 +42,36 @@ def subs2(string):
 				print "%c %c repeated" % (val, valnext)
 	print done
 
+
+def subs3(seq):
+        elem = {}
+        for i, val in enumerate(seq):
+                if val not in elem.keys():
+                        elem[val] = [i]
+                else:
+                        elem[val].append(i)
+        for i, val in enumerate(seq):
+                if len(elem[i]) < 2:
+                        continue
+                for j in range(i+1 ,len(seq)):
+                        if (elem[i][0] > elem[j][0] and elem[i][1] > elem[j][1])
+                                return [elem[i] + elem[j]]
+
+
+def subs4(seq):
+	rep = []
+	repeated = ""
+	for i in range(seq):
+		rep[i] = 0
+	for i in range(seq):
+		rep[i]+=1
+	for i in range(seq): 
+		if rep[i] > 1:
+			repeated.append(seq[i])
+	# if palindrome ??
+	if repeated[0:len(repeated)/2] == repeated[len(repeated)/2:len(repeated)]	
+		return False
+	else
+		return True
 print subs2("acbdaghfb")
 

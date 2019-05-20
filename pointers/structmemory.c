@@ -36,6 +36,7 @@ int main() {
     test1.c[1] = 0x22;
     test1.c[2] = 0x33;
     test1.c[3] = 0x44; // &c+4
+    // padding again?
     // memory (-->higher addr)
     // 0x11 22 33 44
     // Big endian would read    11 22 33 44
@@ -45,7 +46,10 @@ int main() {
     //                 11111111 11111111 11111111 11110011 invert
     //                 11111111 11111111 11111111 11110100 add 1
     //                 0xFF     0xFF     0xFF     0xF 4
-    test1.f = 0x1122334455; // warning
+    test1.f = 0x1122334455;
+    // warning: implicit conversion from
+    //  'long' to 'unsigned int' changes value from
+    //  73588229205 to 573785173 [-Wconstant-conversion]
     // 0x 55 44 33 22 in little endian
     // 0x 11 22 33 44 in big endian???
     test1.g = 0x06;
@@ -57,16 +61,16 @@ int main() {
     
     printf("printing 4 bytes at a time:\n");
     for (i = 0; i*sizeof(int) < sizeof(struct mystruct); i++) {
-        printf("ptr addr %p: 0x%x\n", ptr, *ptr);
+        printf(" *%p: 0x%x\n", ptr, *ptr);
         ptr++;
     }
 
     printf("printing 1 byte at a time:\n");
-    char *p;
+    unsigned char *p;
     printf("test1: %x, end: %x\n", &test1, &test1 + sizeof(struct mystruct));
     // next line is forever loop
     //for (p = (char *)&test1; (uintptr_t)p < (uintptr_t)(&test1 + sizeof(struct mystruct)); p+=4) {
-    for (p = (char *)&test1; p < ((char *)&test1 + sizeof(struct mystruct)); p+=4) { 
+    for (p = (uint8_t *)&test1; p < ((uint8_t *)&test1 + sizeof(struct mystruct)); p+=4) { 
         printf("addrs: %p-%p: 0x%x 0x%x 0x%x 0x%x\n", p, p+4, *p, *(p+1), *(p+2), *(p+3));
     }
 
@@ -74,76 +78,41 @@ int main() {
 }
  
 /*
- * stdout from my mac:
- * 
- * int: bytes 4, min: 18446744073709551587, max: 28
- * short: bytes 2
- * long: bytes 8
- * long long: bytes 8
- * float: bytes 4(1 byte exponent, 3 bytes mantissa)
- * double: bytes 8 (11 bits exponent, 53 bits mantissa)
- * long double: bytes 16 (16 bits exponent, 64 bits mantissa)
- * sizeof struct: 40
- * printing 4 bytes at a time:
- * ptr addr 0x7fff58ef9a00: 0x11223344
- * ptr addr 0x7fff58ef9a04: 0x0
- * ptr addr 0x7fff58ef9a08: 0x55667788
- * ptr addr 0x7fff58ef9a0c: 0x11223344
- * ptr addr 0x7fff58ef9a10: 0x44332211
- * ptr addr 0x7fff58ef9a14: 0x0
- * ptr addr 0x7fff58ef9a18: 0xfffffff4
- * ptr addr 0x7fff58ef9a1c: 0x22334455
- * ptr addr 0x7fff58ef9a20: 0x6
- * ptr addr 0x7fff58ef9a24: 0x7fff
- * printing 1 byte at a time:
- * test1: 58ef9a00, end: 58efa040
- * addrs: 0x7fff58ef9a00-0x7fff58ef9a04: 0x44 0x33 0x22 0x11
- * addrs: 0x7fff58ef9a04-0x7fff58ef9a08: 0x0 0x0 0x0 0x0
- * addrs: 0x7fff58ef9a08-0x7fff58ef9a0c: 0xffffff88 0x77 0x66 0x55
- * addrs: 0x7fff58ef9a0c-0x7fff58ef9a10: 0x44 0x33 0x22 0x11
- * addrs: 0x7fff58ef9a10-0x7fff58ef9a14: 0x11 0x22 0x33 0x44
- * addrs: 0x7fff58ef9a14-0x7fff58ef9a18: 0x0 0x0 0x0 0x0
- * addrs: 0x7fff58ef9a18-0x7fff58ef9a1c: 0xfffffff4 0xffffffff 0xffffffff 0xffffffff
- * addrs: 0x7fff58ef9a1c-0x7fff58ef9a20: 0x55 0x44 0x33 0x22
- * addrs: 0x7fff58ef9a20-0x7fff58ef9a24: 0x6 0x0 0x0 0x0
- * addrs: 0x7fff58ef9a24-0x7fff58ef9a28: 0xffffffff 0x7f 0x0 0
- * 
- *
- * stdout from Linux machine:
- *
- * int: bytes 4, min: 18446744073709551587, max: 28
- * short: bytes 2
- * long: bytes 8
- * long long: bytes 8
- * float: bytes 4(1 byte exponent, 3 bytes mantissa)
- * double: bytes 8 (11 bits exponent, 53 bits mantissa)
- * long double: bytes 16 (16 bits exponent, 64 bits mantissa)
- * sizeof struct: 40
- * printing 4 bytes at a time:
- * ptr addr 0x7fff85e10b30: 0x11223344
- * ptr addr 0x7fff85e10b34: 0x0
- * ptr addr 0x7fff85e10b38: 0x55667788
- * ptr addr 0x7fff85e10b3c: 0x11223344
- * ptr addr 0x7fff85e10b40: 0x44332211
- * ptr addr 0x7fff85e10b44: 0x7fff
- * ptr addr 0x7fff85e10b48: 0xfffffff4
- * ptr addr 0x7fff85e10b4c: 0x22334455
- * ptr addr 0x7fff85e10b50: 0x1
- * ptr addr 0x7fff85e10b54: 0x7f3b
- * printing 1 byte at a time:
- * test1: 85e10b30, end: 85e11170
- * addrs: 0x7fff85e10b30-0x7fff85e10b34: 0x44 0x33 0x22 0x11
- * addrs: 0x7fff85e10b34-0x7fff85e10b38: 0x0 0x0 0x0 0x0
- * addrs: 0x7fff85e10b38-0x7fff85e10b3c: 0xffffff88 0x77 0x66 0x55  <- signed char!!
- * addrs: 0x7fff85e10b3c-0x7fff85e10b40: 0x44 0x33 0x22 0x11
- * addrs: 0x7fff85e10b40-0x7fff85e10b44: 0x11 0x22 0x33 0x44
- * addrs: 0x7fff85e10b44-0x7fff85e10b48: 0xffffffff 0x7f 0x0 0x0
- * addrs: 0x7fff85e10b48-0x7fff85e10b4c: 0xfffffff4 0xffffffff 0xffffffff 0xffffffff
- * addrs: 0x7fff85e10b4c-0x7fff85e10b50: 0x55 0x44 0x33 0x22   => little endian (stores from MSB to LSB)
- * addrs: 0x7fff85e10b50-0x7fff85e10b54: 0x6 0x0 0x0 0x        => little endian
- * addrs: 0x7fff85e10b54-0x7fff85e10b58: 0x3b 0x7f 0x0 0x0
- *
- */
+ stdout from my mac with gcc:
+
+int: bytes 4, min: 18446744073709551587, max: 28
+short: bytes 2
+long: bytes 8
+long long: bytes 8
+float: bytes 4(1 byte exponent, 3 bytes mantissa)
+double: bytes 8 (11 bits exponent, 53 bits mantissa)
+long double: bytes 16 (16 bits exponent, 64 bits mantissa)
+sizeof struct: 40
+printing 4 bytes at a time:
+ *0x7fff5a84faf0: 0x11223344
+ *0x7fff5a84faf4: 0x0
+ *0x7fff5a84faf8: 0x55667788
+ *0x7fff5a84fafc: 0x11223344
+ *0x7fff5a84fb00: 0x44332211
+ *0x7fff5a84fb04: 0x0
+ *0x7fff5a84fb08: 0xfffffff4
+ *0x7fff5a84fb0c: 0x22334455
+ *0x7fff5a84fb10: 0x6
+ *0x7fff5a84fb14: 0x7fff
+printing 1 byte at a time:
+test1: 5a84faf0, end: 5a850130
+addrs: 0x7fff5a84faf0-0x7fff5a84faf4: 0x44 0x33 0x22 0x11
+addrs: 0x7fff5a84faf4-0x7fff5a84faf8: 0x0 0x0 0x0 0x0
+addrs: 0x7fff5a84faf8-0x7fff5a84fafc: 0x88 0x77 0x66 0x55
+addrs: 0x7fff5a84fafc-0x7fff5a84fb00: 0x44 0x33 0x22 0x11
+addrs: 0x7fff5a84fb00-0x7fff5a84fb04: 0x11 0x22 0x33 0x44
+addrs: 0x7fff5a84fb04-0x7fff5a84fb08: 0x0 0x0 0x0 0x0
+addrs: 0x7fff5a84fb08-0x7fff5a84fb0c: 0xf4 0xff 0xff 0xff
+addrs: 0x7fff5a84fb0c-0x7fff5a84fb10: 0x55 0x44 0x33 0x22
+addrs: 0x7fff5a84fb10-0x7fff5a84fb14: 0x6 0x0 0x0 0x0
+addrs: 0x7fff5a84fb14-0x7fff5a84fb18: 0xff 0x7f 0x0 0x0
+ 
+*/
                        
 
 

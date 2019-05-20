@@ -15,6 +15,26 @@ https://www.careercup.com/question?id=5709428993556480
 
 */
 
+void btprint(const struct node *tree) {
+        
+        struct node *ptr = tree;
+        while (ptr->left) {
+                push(stack, ptr);
+                ptr = ptr->left;
+        }
+        printf("%d ", ptr->value);      
+             
+        while (back || ptr->right) {
+                back = pop(stack);
+                printf("%d ", back->value);
+                if (ptr->right) {
+                        printf("%d ", ptr->right->value);
+                        ptr = ptr->right;
+                }
+        }
+        // TODO
+}
+
 void printtree(struct node * tree) {
 	if (!tree)
 		return;

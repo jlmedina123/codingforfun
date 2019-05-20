@@ -72,15 +72,16 @@ def substringpermutation(a, b):
  
 def substringpermutation2(a, b):
     asort = "".join(sorted(a))
-    bsort = "".join(sorted(b))
-    if bsort in asort:
-        return True
-    else:
-        return False
+    for i in range(0, len(b) - len(a):
+	if asort == "".join(sort(b[i:i+len(a)])):
+	    return True
+    return False
+
  
 ''' Given two sequences of length N, find the max window of matching
 patterns. For example, seq1 = "ABCDEFG", seq2 = "DBCAPFG", then
 the max window is 4. (ABCD from seq1 and DBCA from seq2)
+https://www.careercup.com/question?id=18868666
 '''
 def maxmatching(seq1, seq2):
     window = ""
@@ -96,6 +97,7 @@ def maxmatching(seq1, seq2):
                         maxwindowsize = windowsize
                         window = seq1[i:j]
     return window
+
  
 '''Imagine we have a large string like this
 "ABCBAHELLOHOWRACECARAREYOUIAMAIDOINGGOOD" which contains

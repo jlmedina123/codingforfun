@@ -3,7 +3,15 @@ Give you an array which has n integers,it has both positive and negative integer
 eg. -1 1 3 -2 2 ans: -1 -2 1 3 2. 
 o(n)time complexity and o(1) space complexity is perfect.
 '''
-
+def sortspecial2(seq):
+	for i in range(0, negs):
+		if seq[i] > 0:
+			el = seq[i]
+			
+			while (seq[j] > 0)
+			for j in range(i, len(seq)):
+				
+		
 def sortspecial(seq):
 	negs = []
 	pos = []

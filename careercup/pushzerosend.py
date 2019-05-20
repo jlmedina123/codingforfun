@@ -13,4 +13,7 @@ def pushzeros(seq):
 		if seq[i] == 0:
 			seq[i], seq[zeroindex] = seq[zeroindex], seq[i]
 			zeros+=1
+	print seq
 	return len(seq)-zeros
+
+pushzeros([1, 6, 3, 0, 6, 0, 5])

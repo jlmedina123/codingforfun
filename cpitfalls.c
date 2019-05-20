@@ -302,6 +302,7 @@ const int * f = (int *)4; // correct
 
 
 // to avoid double free, or using after freeing
+#define nullfree(ptr)	({ assert(!ptr); free(ptr); ptr = 0; })
 void nullfree(void **pptr) { 
     void *ptr = *pptr;
     assert(ptr != NULL);      // to catch double free
@@ -312,6 +313,10 @@ int main() {
     int *ptr = malloc(10);
     //nullfree(&ptr); // void * is generic, but void ** isnt. this gives warning 
     nullfree((void **)&ptr);
+
+#ifdef EASIER
+    nullfree(ptr);
+#endif
     return 0;
 }
 
