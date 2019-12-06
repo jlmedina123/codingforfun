@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+// https://stackoverflow.com/questions/47981/how-do-you-set-clear-and-toggle-a-single-bit
  
 /*** Review of bitwise operations
     && is logical operator: result is true (1) or false (0)
