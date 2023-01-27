@@ -68,7 +68,29 @@ void insert_single(node_ts ** list, int value) {
     prev->next = new;
     new->next = ptr;
 }
- 
+
+void insert_single2(node_st ** list, int val) {
+        node_st * new = malloc(sizeof(node_st));
+        new->next = NULL;
+        new->val = val;
+        assert(new);
+        assert(list);
+        if (!*list || (*list)->val > val) {
+                new->next = *list;
+                *list = new;
+                return;
+        }
+        node_st * ptr = *list;
+        while (ptr->next && ptr->next->val < val)
+                ptr = ptr->next;
+        if (!ptr->next) {
+                ptr->next = new;
+        } else {
+                new->next = ptr->next->next;
+                ptr->next = new;
+        }
+}
+
 void print_single(node_ts *list) {
     while (list != NULL) {
         printf("%d, ", list->value);
@@ -127,7 +149,7 @@ void insert_singlecircular(node_ts ** list, int value) {
             return;
         }
         /* if list has more nodes, get last node */
-        node_t *ptr = (*list)->next;
+        node_ts *ptr = (*list)->next;
         while (ptr->next != *list) {
             assert(ptr->next != NULL);
             ptr = ptr->next;
@@ -142,7 +164,7 @@ void insert_singlecircular(node_ts ** list, int value) {
     /* another way to insert at beginning
        without having to traverse list */
     if ((*list)->value > value) {
-        memcpy(new, *list, sizeof(node_t));
+        memcpy(new, *list, sizeof(node_ts));
         (*list)->value = value;
         (*list)->next = new;
         return;

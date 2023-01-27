@@ -45,9 +45,9 @@ https://gcc.gnu.org/onlinedocs/gcc-5.1.0/cpp/Macros.html
 
 
  - predefined macros
-	+ standards: __FILE__, __LINE__, __DATE__, __TIME__, __STDC__, _STDC_VERSION__
+    + standards: __FILE__, __LINE__, __DATE__, __TIME__, __STDC__, _STDC_VERSION__
     + common: __COUNTER__, __GNUC__, __INT_MAX__, __BYTE_ORDER__, __ORDER_LITTLE_ENDIAN__, __ORDER_BIG_ENDIAN__
-	+ system specific: 
+    + system specific: 
  - undefining macros: #undef FOO
 
 macro pitfalls

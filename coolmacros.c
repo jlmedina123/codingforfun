@@ -1,8 +1,9 @@
-lign(ptr, bytes) \
+// align pointer to x bytes
+#define align(ptr, bytes) \
        ((typeof(ptr))(((uintptr_t)(ptr) + (bytes)-1) & ~((bytes)-1)))
 
  
-// check is pointer is memory aligned to x bytes
+// check if pointer is memory aligned to x bytes
 #define isaligned(ptr, bytes) \
         (((uintptr_t)(ptr) & ~((bytes)-1)) == 0)
 
